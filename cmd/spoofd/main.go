@@ -17,6 +17,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -46,6 +47,9 @@ type counters struct {
 
 var stats counters
 
+// devices is the per-client on/off switch, toggled from the status page.
+var devices *deviceSwitch
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.Ltime)
@@ -67,6 +71,7 @@ func main() {
 		log.Fatalf("CA: %v", err)
 	}
 	certs := spoof.NewHostCerts(ca)
+	devices = newDeviceSwitch(*caDir)
 
 	go serveStatus(*httpAddr, ca, loc)
 
@@ -127,7 +132,7 @@ func handleConn(c net.Conn, certs *spoof.HostCerts, loc spoof.Location) {
 		return
 	}
 
-	if !spoof.LocationHosts[sni] {
+	if !spoof.LocationHosts[sni] || !devices.Enabled(c.RemoteAddr()) {
 		stats.spliced.Add(1)
 		target := origDst
 		if origErr != nil {
@@ -234,15 +239,45 @@ func serveStatus(addr string, ca *tls.Certificate, loc spoof.Location) {
 		w.Header().Set("Content-Disposition", `attachment; filename="location-spoofer-ca.crt"`)
 		_, _ = w.Write(certPEM)
 	})
+	// POST /device?spoof=on|off switches spoofing for the calling device; GET /device reports it.
+	// Meant for the button on the status page and for Shortcuts ("Get contents of URL", POST).
+	mux.HandleFunc("/device", func(w http.ResponseWriter, r *http.Request) {
+		addr := remoteAddr(r)
+		if r.Method == http.MethodPost {
+			switch r.FormValue("spoof") {
+			case "on":
+				devices.Set(addr, true)
+			case "off":
+				devices.Set(addr, false)
+			default:
+				http.Error(w, "spoof=on|off", http.StatusBadRequest)
+				return
+			}
+			log.Printf("%s: spoofing %s for this device", addr, r.FormValue("spoof"))
+			if r.Header.Get("Accept") != "" && strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "%s spoof=%s\n", clientIP(addr), onOff(devices.Enabled(addr)))
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
+		addr := remoteAddr(r)
+		enabled := devices.Enabled(addr)
+		next, label := "off", "Disable spoofing for this device"
+		if !enabled {
+			next, label = "on", "Enable spoofing for this device"
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, statusHTML, Version,
 			loc.Latitude, loc.Longitude, loc.Altitude, loc.HorizontalAccuracy,
 			ca.Leaf.NotAfter.Format("2006-01-02"),
+			clientIP(addr), strings.ToUpper(onOff(enabled)), next, label,
 			stats.conns.Load(), stats.spliced.Load(), stats.mitm.Load(), stats.spoofed.Load(), stats.passthrough.Load())
 	})
 	if err := http.ListenAndServe(addr, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -250,11 +285,29 @@ func serveStatus(addr string, ca *tls.Certificate, loc spoof.Location) {
 	}
 }
 
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
+func remoteAddr(r *http.Request) net.Addr {
+	if a, err := net.ResolveTCPAddr("tcp", r.RemoteAddr); err == nil {
+		return a
+	}
+	return &net.TCPAddr{}
+}
+
 const statusHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>spoofd</title><style>body{font-family:-apple-system,system-ui;max-width:32em;margin:2em auto;padding:0 1em;line-height:1.5}
-code{background:#eee;padding:0 .3em}ol li{margin:.4em 0}table{border-collapse:collapse}td{padding:.2em .8em .2em 0}</style></head><body>
+code{background:#eee;padding:0 .3em}button{font:inherit;padding:.5em 1em}ol li{margin:.4em 0}table{border-collapse:collapse}td{padding:.2em .8em .2em 0}</style></head><body>
 <h1>spoofd %s</h1>
 <p>Location: <code>%.6f, %.6f</code>, altitude %d m, accuracy %d m.<br>CA valid until %s.</p>
+<h2>This device</h2>
+<p><code>%s</code> — spoofing <b>%s</b></p>
+<form method="post" action="/device"><input type="hidden" name="spoof" value="%s"><button type="submit">%s</button></form>
+<p><small>Off = this device keeps the exit node but gets its real position. Toggle Location Services off/on after switching.</small></p>
 <h2>Set up a phone</h2>
 <ol>
 <li>Connect through this router as Tailscale exit node.</li>

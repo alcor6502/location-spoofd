@@ -70,7 +70,8 @@ On each phone, once, with the router selected as exit node in the Tailscale app:
 Open Maps. Full guide, tuning and troubleshooting: [docs/router-setup.md](docs/router-setup.md).
 
 **Daily use** — exit node on, then Location Services off/on: you are at home. Exit node off,
-then airplane mode on/off: you are back. `spoofctl off` on the router disables everything.
+then airplane mode on/off: you are back. Want the exit node without the position? The status
+page has a per-device switch. `spoofctl off` on the router disables everything.
 
 ## Limits, honestly
 

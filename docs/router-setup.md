@@ -71,10 +71,29 @@ router shows each intercepted query.
 
 - **Spoofed**: exit node on, then Location Services off/on.
 - **Real position**: exit node off, then airplane mode on/off (or Location Services off/on).
+- **Exit node on, real position**: open `http://<router>:18080/` on the phone and tap
+  *Disable spoofing for this device*, then Location Services off/on. The phone keeps the home
+  IP but its positioning queries go to Apple untouched; other devices are not affected. The
+  same page re-enables it. The switch survives router reboots.
+
+  From a Shortcut: *Get Contents of URL* → `http://<router>:18080/device`, method POST, form
+  field `spoof` = `on` or `off`.
+
+Do **not** "switch off" by disabling the certificate trust: the TLS handshake with `spoofd`
+then fails and `locationd` cannot reach Apple at all, so the phone loses WiFi/cell
+positioning entirely instead of getting its real one (only GPS remains).
 
 Shortcuts can automate the exit node (`Use exit node` / `Stop using exit node` actions) and
 airplane mode. No app or shortcut can toggle Location Services; the best a shortcut can do is
 open Settings › Privacy › Location Services for you.
+
+## Time zone
+
+iOS sets the time zone from the location when Settings › General › Date & Time › *Set
+Automatically* is on, so a spoofed phone will move its clock to the spoofed zone by itself
+(the time itself is NTP and stays correct). That is coherent with the position and usually
+what you want. To keep your real clock while spoofed, turn off Settings › Privacy & Security ›
+Location Services › System Services › *Setting Time Zone* and set the zone by hand.
 
 ## Turning it off
 

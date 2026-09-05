@@ -29,6 +29,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 	certs := spoof.NewHostCerts(ca)
 	loc := spoof.DefaultAccuracy(48.858370, 2.294481)
+	devices = newDeviceSwitch(t.TempDir())
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -75,5 +76,33 @@ func TestEndToEnd(t *testing.T) {
 	}
 	if stats.spoofed.Load() != 1 {
 		t.Errorf("spoofed counter %d", stats.spoofed.Load())
+	}
+}
+
+func TestDeviceSwitchPersists(t *testing.T) {
+	dir := t.TempDir()
+	phone := &net.TCPAddr{IP: net.IPv4(100, 64, 0, 7), Port: 51000}
+	other := &net.TCPAddr{IP: net.IPv4(100, 64, 0, 8), Port: 51001}
+
+	d := newDeviceSwitch(dir)
+	if !d.Enabled(phone) {
+		t.Fatal("devices must start enabled")
+	}
+	d.Set(phone, false)
+	if d.Enabled(phone) || !d.Enabled(other) {
+		t.Error("switch must be per device")
+	}
+	// Same port does not matter, only the IP.
+	if d.Enabled(&net.TCPAddr{IP: phone.IP, Port: 1}) {
+		t.Error("switch must key on IP, not port")
+	}
+
+	d2 := newDeviceSwitch(dir)
+	if d2.Enabled(phone) {
+		t.Error("disabled state must survive a restart")
+	}
+	d2.Set(phone, true)
+	if !newDeviceSwitch(dir).Enabled(phone) {
+		t.Error("re-enabling must persist too")
 	}
 }

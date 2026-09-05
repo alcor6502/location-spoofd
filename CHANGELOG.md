@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0 — 2026-09-05
+
+### Added
+- Per-device switch on the status page (`POST /device spoof=on|off`): a phone can keep the
+  exit node and still get its real position, without touching certificates. Persisted across
+  restarts.
+
+### Docs
+- Why disabling the certificate trust is not a way to switch off; time zone behaviour.
+
 ## v1.0.0 — 2026-09-05
 
 First release. Built on the reverse engineering and the on-device app of
