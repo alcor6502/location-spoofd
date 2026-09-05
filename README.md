@@ -77,7 +77,9 @@ page has a per-device switch. `spoofctl off` on the router disables everything.
 
 - **GPS is computed on the device** and cannot be intercepted. Indoors, or with a weak sky
   view, the WiFi + cell fix wins; under an open sky a strong GPS fix can take over. Both
-  spoofed sources agreeing (WiFi and cell) is what keeps the position stable in practice.
+  spoofed sources agreeing (WiFi and cell) is what keeps the position stable in practice —
+  a device without an active SIM has no cell fix to corroborate the WiFi one and gives in to
+  GPS more easily. Turning cellular data on helps where possible.
 - **Location Services must be toggled by hand** after switching: iOS caches the fused fix,
   and no app, shortcut or profile is allowed to touch that switch. A Shortcut can set the exit
   node and open the right Settings page; the tap is yours.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.0 — 2026-09-05
 
 ### Added
 - Replies carry the neighbourhood: every BSSID any client has asked about is appended to each
