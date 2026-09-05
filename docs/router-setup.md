@@ -87,6 +87,16 @@ Shortcuts can automate the exit node (`Use exit node` / `Stop using exit node` a
 airplane mode. No app or shortcut can toggle Location Services; the best a shortcut can do is
 open Settings › Privacy › Location Services for you.
 
+## Optional: stop the phone from reporting back
+
+iPhones feed Apple's WiFi/cell database with what they see, geo-tagged with GPS fixes. A
+spoofed phone has no usable GPS fix indoors and reports the true position outdoors, so it is
+unlikely to send anything wrong — but if you would rather not contribute at all, turn off
+Settings › Privacy & Security › Location Services › System Services › **Improve Location
+Accuracy** (the other entries in that group, *iPhone Analytics*, *Routing & Traffic* and
+*Improve Maps*, are unrelated to positioning and can stay either way). None of these affect
+how the phone locates itself.
+
 ## Time zone
 
 iOS sets the time zone from the location when Settings › General › Date & Time › *Set
