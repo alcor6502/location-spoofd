@@ -23,10 +23,11 @@ start_service() {
 	config_get tls_port  main tls_port  18443
 	config_get http_port main http_port 18080
 	config_get dump_dir  main dump_dir           # debug only: raw request/response dumps
+	config_get observe   main observe            # debug only: hosts to intercept, log and forward
 
 	procd_open_instance
 	procd_set_param command /usr/bin/spoofd -lat "$lat" -lon "$lon" -alt "$alt" -hacc "$hacc" -vacc "$vacc" \
-		-listen ":$tls_port" -http ":$http_port" -ca-dir /etc/spoofd ${dump_dir:+-dump "$dump_dir"}
+		-listen ":$tls_port" -http ":$http_port" -ca-dir /etc/spoofd ${dump_dir:+-dump "$dump_dir"} ${observe:+-observe "$observe"}
 	procd_set_param respawn 3600 5 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1

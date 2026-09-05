@@ -87,6 +87,13 @@ Shortcuts can automate the exit node (`Use exit node` / `Stop using exit node` a
 airplane mode. No app or shortcut can toggle Location Services; the best a shortcut can do is
 open Settings › Privacy › Location Services for you.
 
+## Devices without a SIM
+
+An iPad (or iPhone) with no active SIM/eSIM never queries cell towers, so it has only the WiFi
+fix to set against GPS. It still holds the spoofed position indoors once the neighbourhood is
+learned, but gives in to GPS more easily near windows or skylights. Nothing on the router can
+change that; a device with cellular data on gets the cell fix as a second vote.
+
 ## Optional: stop the phone from reporting back
 
 iPhones feed Apple's WiFi/cell database with what they see, geo-tagged with GPS fixes. A

@@ -39,6 +39,7 @@ var (
 	verbose     = flag.Bool("v", false, "log every connection, not just spoofed requests")
 	showVersion = flag.Bool("version", false, "print version and exit")
 	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
+	observe     = flag.String("observe", "", "debug: comma-separated hosts to intercept and log (method, path, sizes) while forwarding them unchanged")
 	dialLimit   = 10 * time.Second
 )
 
@@ -53,6 +54,9 @@ var devices *deviceSwitch
 
 // bssids is the neighbourhood every reply carries: access points seen in earlier requests.
 var bssids *bssidCache
+
+// observed hosts are terminated like location hosts, logged and forwarded (debug).
+var observed = map[string]bool{}
 
 func main() {
 	flag.Parse()
@@ -75,6 +79,11 @@ func main() {
 		log.Fatalf("CA: %v", err)
 	}
 	certs := spoof.NewHostCerts(ca)
+	for _, h := range strings.Split(*observe, ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			observed[h] = true
+		}
+	}
 	devices = newDeviceSwitch(*caDir)
 	bssids = newBSSIDCache(*caDir, 500)
 
@@ -137,7 +146,7 @@ func handleConn(c net.Conn, certs *spoof.HostCerts, loc spoof.Location) {
 		return
 	}
 
-	if !spoof.LocationHosts[sni] || !devices.Enabled(c.RemoteAddr()) {
+	if !(spoof.LocationHosts[sni] || observed[sni]) || !devices.Enabled(c.RemoteAddr()) {
 		stats.spliced.Add(1)
 		target := origDst
 		if origErr != nil {
@@ -188,6 +197,12 @@ func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !spoof.IsLocationRequest(r) {
 			stats.passthrough.Add(1)
+			if observed[host] {
+				rec := &statusRecorder{ResponseWriter: w}
+				proxy.ServeHTTP(rec, r)
+				log.Printf("%s: observe %s %s%s req=%dB -> %d %dB ua=%q", r.RemoteAddr, r.Method, host, r.URL.Path, r.ContentLength, rec.status, rec.bytes, r.Header.Get("User-Agent"))
+				return
+			}
 			proxy.ServeHTTP(w, r)
 			return
 		}
@@ -342,4 +357,20 @@ func dumpExchange(dir string, r *http.Request, reqBody, resp []byte) {
 		hdr = append(hdr, []byte(k+": "+v[0]+"\n")...)
 	}
 	_ = os.WriteFile(base+".hdr", hdr, 0o644)
+}
+
+// statusRecorder captures status and size of a proxied response for the observe log.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (s *statusRecorder) WriteHeader(code int) { s.status = code; s.ResponseWriter.WriteHeader(code) }
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	if s.status == 0 {
+		s.status = http.StatusOK
+	}
+	s.bytes += len(b)
+	return s.ResponseWriter.Write(b)
 }
