@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Replies carry the neighbourhood: every BSSID any client has asked about is appended to each
+  reply at the spoofed location, capped by `num_wifi_results`, cached in `/etc/spoofd/bssids`.
+  Fixes devices (iPadOS) that ask one access point per request and kept polling every 40 s.
+- `spoofd -dump DIR` and `cmd/wlocdump` to capture and decode raw exchanges; `dump_dir` uci option.
+
 ## v1.1.0 — 2026-09-05
 
 ### Added

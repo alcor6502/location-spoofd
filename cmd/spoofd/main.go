@@ -51,6 +51,9 @@ var stats counters
 // devices is the per-client on/off switch, toggled from the status page.
 var devices *deviceSwitch
 
+// bssids is the neighbourhood every reply carries: access points seen in earlier requests.
+var bssids *bssidCache
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.Ltime)
@@ -73,6 +76,7 @@ func main() {
 	}
 	certs := spoof.NewHostCerts(ca)
 	devices = newDeviceSwitch(*caDir)
+	bssids = newBSSIDCache(*caDir, 500)
 
 	go serveStatus(*httpAddr, ca, loc)
 
@@ -192,7 +196,7 @@ func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, st, err := spoof.Respond(body, loc)
+		resp, st, err := spoof.Respond(body, loc, bssids.Neighbours())
 		if err != nil {
 			stats.passthrough.Add(1)
 			log.Printf("%s: %v, forwarding to Apple", r.RemoteAddr, err)
@@ -201,6 +205,7 @@ func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
 			proxy.ServeHTTP(w, r)
 			return
 		}
+		bssids.Learn(st.BSSIDs)
 		stats.spoofed.Add(1)
 		log.Printf("%s: spoofed %s (%s)", r.RemoteAddr, r.Header.Get("User-Agent"), st)
 		if *dumpDir != "" {

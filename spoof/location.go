@@ -23,16 +23,22 @@ func IsLocationRequest(req *http.Request) bool {
 
 // Stats describes what Respond did with one request, for diagnostics.
 type Stats struct {
-	WifiCount int
-	CellCount int
-	Modified  int // Location fields written
-	InBytes   int // ARPC payload size in
-	OutBytes  int // ARPC payload size out
+	WifiCount  int      // access points in the request
+	CellCount  int      // cell towers in the request
+	Added      int      // neighbourhood access points appended to the reply
+	Modified   int      // Location fields written
+	InBytes    int      // ARPC payload size in
+	OutBytes   int      // ARPC payload size out
+	BSSIDs     []string // access points the device asked about
+	WantedWifi int      // num_wifi_results: how many access points the device expects back
 }
 
 func (s Stats) String() string {
-	return fmt.Sprintf("wifi=%d cell=%d modified=%d in=%dB out=%dB", s.WifiCount, s.CellCount, s.Modified, s.InBytes, s.OutBytes)
+	return fmt.Sprintf("wifi=%d+%d cell=%d modified=%d in=%dB out=%dB", s.WifiCount, s.Added, s.CellCount, s.Modified, s.InBytes, s.OutBytes)
 }
+
+// DefaultNeighbourhood is how many access points a reply carries when the request doesn't say.
+const DefaultNeighbourhood = 50
 
 // ErrPassThrough is returned by Respond when the body isn't a request we understand;
 // the caller should forward it to Apple unchanged.
@@ -44,7 +50,13 @@ var arpcResponseMagic = []byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00}
 // Respond builds the complete ARPC reply for a /clls/wloc request body, with every access point
 // and cell tower placed at loc. Apple is never contacted: the request's own device list is turned
 // into the answer.
-func Respond(body []byte, loc Location) ([]byte, Stats, error) {
+//
+// Apple answers a query with the whole neighbourhood — up to num_wifi_results access points
+// around the ones asked about — and locationd uses that list to place every access point it can
+// see without asking again. neighbours plays that role: BSSIDs seen in earlier requests, appended
+// to the reply at the same location. Without it, a device that asks one BSSID at a time (iPadOS
+// does) keeps querying until every access point in its scan has been asked individually.
+func Respond(body []byte, loc Location, neighbours []string) ([]byte, Stats, error) {
 	var st Stats
 
 	arpc := ArpcDeserialize(body)
@@ -60,11 +72,32 @@ func Respond(body []byte, loc Location) ([]byte, Stats, error) {
 	}
 	st.WifiCount = len(wloc.WifiDevices)
 	st.CellCount = len(wloc.CellTowerResponse)
+	st.WantedWifi = int(wloc.GetNumWifiResults())
+	asked := make(map[string]bool, len(wloc.WifiDevices))
+	for _, d := range wloc.WifiDevices {
+		st.BSSIDs = append(st.BSSIDs, d.Bssid)
+		asked[d.Bssid] = true
+	}
 
 	// Recursive raw wire splice: only touch the Location fields we spoof (lat/lon/accuracy/altitude);
 	// every other field (unknown tags/NumCellResults/DeviceType, ...) is preserved byte-for-byte.
 	payload, modified := RewriteAppleWLoc(arpc.Payload, loc)
 	st.Modified = modified
+
+	limit := st.WantedWifi
+	if limit <= 0 {
+		limit = DefaultNeighbourhood
+	}
+	for _, b := range neighbours {
+		if st.WifiCount+st.Added >= limit {
+			break
+		}
+		if asked[b] {
+			continue
+		}
+		payload = AppendWifiDevice(payload, b, loc)
+		st.Added++
+	}
 	st.OutBytes = len(payload)
 
 	// Response framing: 8-byte magic + 2-byte big-endian length + payload.

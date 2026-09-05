@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	pb "github.com/alcor6502/location-spoofd/pb"
 	"github.com/alcor6502/location-spoofd/spoof"
@@ -30,6 +31,7 @@ func TestEndToEnd(t *testing.T) {
 	certs := spoof.NewHostCerts(ca)
 	loc := spoof.DefaultAccuracy(48.858370, 2.294481)
 	devices = newDeviceSwitch(t.TempDir())
+	bssids = newBSSIDCache(t.TempDir(), 500)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -104,5 +106,23 @@ func TestDeviceSwitchPersists(t *testing.T) {
 	d2.Set(phone, true)
 	if !newDeviceSwitch(dir).Enabled(phone) {
 		t.Error("re-enabling must persist too")
+	}
+}
+
+func TestBSSIDCacheOrderAndPersistence(t *testing.T) {
+	dir := t.TempDir()
+	c := newBSSIDCache(dir, 3)
+	c.Learn([]string{"aa:aa:aa:aa:aa:01"})
+	time.Sleep(2 * time.Millisecond)
+	c.Learn([]string{"aa:aa:aa:aa:aa:02", "aa:aa:aa:aa:aa:03"})
+	time.Sleep(2 * time.Millisecond)
+	c.Learn([]string{"aa:aa:aa:aa:aa:04"}) // evicts :01, the oldest
+
+	got := c.Neighbours()
+	if len(got) != 3 || got[0] != "aa:aa:aa:aa:aa:04" || got[2] == "aa:aa:aa:aa:aa:01" {
+		t.Errorf("order/eviction wrong: %v", got)
+	}
+	if again := newBSSIDCache(dir, 3).Neighbours(); len(again) != 3 || again[0] != "aa:aa:aa:aa:aa:04" {
+		t.Errorf("persistence wrong: %v", again)
 	}
 }

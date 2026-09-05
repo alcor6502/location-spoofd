@@ -35,6 +35,15 @@ fix agrees with the WiFi one. Everything else in the message is copied byte-for-
 protobuf wire (`spoof/rewrite.go`) — unknown fields included — so the reply looks like what
 `locationd` expects from Apple, framed as `8-byte magic + u16 length + payload`.
 
+Apple's real reply is bigger than the question: it carries the *neighbourhood*, up to
+`num_wifi_results` (50) access points around the ones asked about, and `locationd` uses that
+list to place every access point in its scan without asking again. Some devices lean on this
+heavily — iPadOS asks about one BSSID at a time and expects the rest to come back with it.
+`spoofd` therefore remembers every BSSID any client has ever asked about (`/etc/spoofd/bssids`,
+shared between devices, 500 entries) and appends them to each reply at the same location.
+Without it a device keeps querying, one access point per request, until it has asked about
+everything it can see.
+
 All access points at one point means the trilateration collapses with minimal uncertainty:
 that is what makes the WiFi fix win against a weak GPS fix. It cannot win against a strong
 one; see the notes in the README.

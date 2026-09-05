@@ -194,3 +194,15 @@ func rewriteLocation(locBytes []byte, loc Location) ([]byte, int) {
 	}
 	return out, modified
 }
+
+// AppendWifiDevice adds a wifi_devices entry for bssid, placed at loc, to an AppleWLoc payload.
+func AppendWifiDevice(payload []byte, bssid string, loc Location) []byte {
+	locBytes, _ := rewriteLocation(nil, loc)
+	var wd []byte
+	wd = protowire.AppendTag(wd, 1, protowire.BytesType) // bssid
+	wd = protowire.AppendString(wd, bssid)
+	wd = protowire.AppendTag(wd, tagWifiDeviceLocation, protowire.BytesType)
+	wd = protowire.AppendBytes(wd, locBytes)
+	payload = protowire.AppendTag(payload, tagWLocWifiDevices, protowire.BytesType)
+	return protowire.AppendBytes(payload, wd)
+}

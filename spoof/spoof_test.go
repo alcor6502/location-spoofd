@@ -216,12 +216,16 @@ func TestRespond(t *testing.T) {
 	payload, _ := proto.Marshal(req)
 	body := ArpcSerialize(&ArpcRequest{Version: "1", Locale: "en_US", AppIdentifier: "com.apple.locationd", OsVersion: "26.5", Payload: payload})
 
-	resp, st, err := Respond(body, loc)
+	neighbours := []string{"aa:bb:cc:dd:ee:ff", "de:ad:be:ef:00:01", "de:ad:be:ef:00:02"}
+	resp, st, err := Respond(body, loc, neighbours)
 	if err != nil {
 		t.Fatalf("Respond: %v", err)
 	}
-	if st.WifiCount != 2 || st.Modified != 10 {
+	if st.WifiCount != 2 || st.Modified != 10 || st.Added != 2 {
 		t.Errorf("stats: %s", st)
+	}
+	if len(st.BSSIDs) != 2 || st.BSSIDs[1] != "11:22:33:44:55:66" {
+		t.Errorf("BSSIDs learned: %v", st.BSSIDs)
 	}
 	if string(resp[:8]) != string(arpcResponseMagic) {
 		t.Errorf("magic: %x", resp[:8])
@@ -237,8 +241,22 @@ func TestRespond(t *testing.T) {
 	if got := CoordFromInt(out.WifiDevices[1].Location.GetLatitude()); math.Abs(got-loc.Latitude) > 1e-7 {
 		t.Errorf("device 1 latitude %f, want %f", got, loc.Latitude)
 	}
+	// Neighbourhood: the two unknown BSSIDs appended, the duplicate skipped, all at the location.
+	if len(out.WifiDevices) != 4 {
+		t.Fatalf("reply has %d access points, want 4 (2 asked + 2 neighbours)", len(out.WifiDevices))
+	}
+	if out.WifiDevices[3].Bssid != "de:ad:be:ef:00:02" || out.WifiDevices[3].Location.GetHorizontalAccuracy() != loc.HorizontalAccuracy {
+		t.Errorf("neighbour not appended correctly: %+v", out.WifiDevices[3])
+	}
 
-	if _, _, err := Respond([]byte("not arpc"), loc); !errors.Is(err, ErrPassThrough) {
+	// num_wifi_results caps the reply size.
+	small, _ := proto.Marshal(&pb.AppleWLoc{WifiDevices: []*pb.WifiDevice{{Bssid: "aa:bb:cc:dd:ee:ff"}}, NumWifiResults: proto.Int32(2)})
+	body2 := ArpcSerialize(&ArpcRequest{Version: "1", Locale: "en_US", AppIdentifier: "com.apple.locationd", OsVersion: "26.5", Payload: small})
+	if _, st2, _ := Respond(body2, loc, neighbours); st2.Added != 1 || st2.WantedWifi != 2 {
+		t.Errorf("cap by num_wifi_results: %s wanted=%d", st2, st2.WantedWifi)
+	}
+
+	if _, _, err := Respond([]byte("not arpc"), loc, nil); !errors.Is(err, ErrPassThrough) {
 		t.Errorf("garbage body: err=%v, want ErrPassThrough", err)
 	}
 }
