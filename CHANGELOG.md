@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Debug aids: `spoofd -observe host,...` logs method, path, sizes and user-agent of requests to
+  those hosts while forwarding them unchanged; `-v` logs every spliced connection; both
+  exposed as `observe` / `verbose` uci options. Used to look for the crowdsourcing upload
+  endpoint (not found on 17.0.0.0/8 in an hour; `iphone-ld.apple.com` is the open lead).
+
 ## v1.2.0 — 2026-09-05
 
 ### Added
