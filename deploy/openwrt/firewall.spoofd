@@ -1,0 +1,12 @@
+# spoofd: send HTTPS traffic from Tailscale exit-node clients towards Apple (17.0.0.0/8)
+# through the local MITM daemon. Non-Apple-location hosts are spliced through untouched.
+# Sourced from /etc/firewall.user (fw3, iptables-legacy). Idempotent.
+SPOOFD_RULE="-i tailscale0 -p tcp -d 17.0.0.0/8 --dport 443 -j REDIRECT --to-ports 18443"
+if [ "$(uci -q get spoofd.main.enabled)" != "0" ]; then
+	iptables -w 5 -t nat -C prerouting_rule $SPOOFD_RULE 2>/dev/null || iptables -w 5 -t nat -A prerouting_rule $SPOOFD_RULE
+else
+	iptables -w 5 -t nat -D prerouting_rule $SPOOFD_RULE 2>/dev/null || true
+fi
+for p in 18443 18080; do
+	iptables -w 5 -C input_tailscale0_rule -p tcp --dport $p -j ACCEPT 2>/dev/null || iptables -w 5 -A input_tailscale0_rule -p tcp --dport $p -j ACCEPT
+done

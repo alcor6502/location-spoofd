@@ -1,0 +1,19 @@
+#!/bin/sh
+# spoofctl on|off|status — master switch for the Apple location spoofer on the router.
+# "off" stops the daemon AND removes the NAT redirect, so exit-node clients get real positioning again.
+case "$1" in
+	on|off)
+		[ "$1" = on ] && v=1 || v=0
+		uci set spoofd.main.enabled="$v" && uci commit spoofd
+		/etc/init.d/spoofd restart
+		/etc/init.d/firewall restart >/dev/null 2>&1
+		sleep 2
+		;;
+	status) ;;
+	*) echo "usage: spoofctl on|off|status"; exit 1 ;;
+esac
+if pgrep -f /usr/bin/spoofd >/dev/null && iptables -w 5 -t nat -S prerouting_rule | grep -q 18443; then
+	echo "spoofd: ON  ($(uci -q get spoofd.main.lat), $(uci -q get spoofd.main.lon))"
+else
+	echo "spoofd: OFF"
+fi
