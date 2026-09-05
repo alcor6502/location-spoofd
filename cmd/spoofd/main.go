@@ -38,6 +38,7 @@ var (
 	caDir       = flag.String("ca-dir", "/etc/spoofd", "directory holding ca.pem and ca-key.pem (created if missing)")
 	verbose     = flag.Bool("v", false, "log every connection, not just spoofed requests")
 	showVersion = flag.Bool("version", false, "print version and exit")
+	logFile     = flag.String("log", "", "append the log to this file as well as stderr")
 	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
 	observe     = flag.String("observe", "", "debug: comma-separated hosts to intercept and log (method, path, sizes) while forwarding them unchanged")
 	dialLimit   = 10 * time.Second
@@ -60,7 +61,14 @@ var observed = map[string]bool{}
 
 func main() {
 	flag.Parse()
-	log.SetFlags(log.Ltime)
+	log.SetFlags(log.Ldate | log.Ltime)
+	if *logFile != "" {
+		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			log.Fatalf("log file: %v", err)
+		}
+		log.SetOutput(io.MultiWriter(os.Stderr, f))
+	}
 	if *showVersion {
 		fmt.Println("spoofd", Version)
 		return
