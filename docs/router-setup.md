@@ -92,7 +92,9 @@ open Settings › Privacy › Location Services for you.
 iOS sets the time zone from the location when Settings › General › Date & Time › *Set
 Automatically* is on, so a spoofed phone will move its clock to the spoofed zone by itself
 (the time itself is NTP and stays correct). That is coherent with the position and usually
-what you want. To keep your real clock while spoofed, turn off Settings › Privacy & Security ›
+what you want. The update is not immediate: the *Setting Time Zone* system service only
+re-evaluates on significant location changes and on its own schedule. To force it right away,
+Settings › General › Date & Time › *Set Automatically* off, then on. To keep your real clock while spoofed, turn off Settings › Privacy & Security ›
 Location Services › System Services › *Setting Time Zone* and set the zone by hand.
 
 ## Turning it off
