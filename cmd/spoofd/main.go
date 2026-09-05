@@ -38,6 +38,7 @@ var (
 	caDir       = flag.String("ca-dir", "/etc/spoofd", "directory holding ca.pem and ca-key.pem (created if missing)")
 	verbose     = flag.Bool("v", false, "log every connection, not just spoofed requests")
 	showVersion = flag.Bool("version", false, "print version and exit")
+	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
 	dialLimit   = 10 * time.Second
 )
 
@@ -202,6 +203,9 @@ func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
 		}
 		stats.spoofed.Add(1)
 		log.Printf("%s: spoofed %s (%s)", r.RemoteAddr, r.Header.Get("User-Agent"), st)
+		if *dumpDir != "" {
+			dumpExchange(*dumpDir, r, body, resp)
+		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", fmt.Sprint(len(resp)))
 		w.WriteHeader(http.StatusOK)
@@ -320,3 +324,17 @@ code{background:#eee;padding:0 .3em}button{font:inherit;padding:.5em 1em}ol li{m
 <table><tr><td>connections</td><td>%d</td></tr><tr><td>spliced (other hosts)</td><td>%d</td></tr>
 <tr><td>intercepted</td><td>%d</td></tr><tr><td>spoofed queries</td><td>%d</td></tr><tr><td>forwarded to Apple</td><td>%d</td></tr></table>
 </body></html>`
+
+// dumpExchange writes the raw request body, the reply and the request headers for offline
+// analysis (decode with `go run ./cmd/wlocdump <file>`).
+func dumpExchange(dir string, r *http.Request, reqBody, resp []byte) {
+	_ = os.MkdirAll(dir, 0o755)
+	base := filepath.Join(dir, time.Now().Format("150405.000")+"-"+clientIP(remoteAddr(r)))
+	_ = os.WriteFile(base+".req", reqBody, 0o644)
+	_ = os.WriteFile(base+".resp", resp, 0o644)
+	var hdr []byte
+	for k, v := range r.Header {
+		hdr = append(hdr, []byte(k+": "+v[0]+"\n")...)
+	}
+	_ = os.WriteFile(base+".hdr", hdr, 0o644)
+}
