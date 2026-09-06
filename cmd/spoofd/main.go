@@ -154,7 +154,10 @@ func handleConn(c net.Conn, certs *spoof.HostCerts, loc spoof.Location) {
 		return
 	}
 
-	if !(spoof.LocationHosts[sni] || observed[sni]) || !devices.Enabled(c.RemoteAddr()) {
+	// Spoofing applies to location hosts of enabled devices. Observed hosts are terminated for
+	// every device (logging only, forwarded unchanged) — a disabled device stays a normal phone.
+	spoofing := spoof.LocationHosts[sni] && devices.Enabled(c.RemoteAddr())
+	if !spoofing && !observed[sni] {
 		stats.spliced.Add(1)
 		target := origDst
 		if origErr != nil {
@@ -181,14 +184,14 @@ func handleConn(c net.Conn, certs *spoof.HostCerts, loc spoof.Location) {
 		upstream = net.JoinHostPort(sni, "443")
 	}
 	srv := &http.Server{
-		Handler:           locationHandler(sni, upstream, loc),
+		Handler:           locationHandler(sni, upstream, loc, spoofing),
 		ReadHeaderTimeout: dialLimit,
 	}
 	_ = srv.Serve(newOneConnListener(tlsConn))
 }
 
 // locationHandler answers /clls/wloc locally and reverse-proxies anything else to the real host.
-func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
+func locationHandler(host, upstream string, loc spoof.Location, spoofing bool) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
 			r.URL.Scheme = "https"
@@ -203,7 +206,7 @@ func locationHandler(host, upstream string, loc spoof.Location) http.Handler {
 		},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !spoof.IsLocationRequest(r) {
+		if !spoofing || !spoof.IsLocationRequest(r) {
 			stats.passthrough.Add(1)
 			if observed[host] {
 				rec := &statusRecorder{ResponseWriter: w}
