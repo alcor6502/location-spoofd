@@ -16,11 +16,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/alcor6502/location-spoofd/spoof"
@@ -42,8 +40,6 @@ var (
 	polite      = flag.Bool("polite", true, "swallow the location data spoofed devices would upload to Apple (/hvr/ on gsp10/gsp64)")
 	showVersion = flag.Bool("version", false, "print version and exit")
 	configFile  = flag.String("config", "", "read options from this file (name=value per line); later flags override")
-	pfIface     = flag.String("pf", "", "FreeBSD/pfSense: load the pf redirect for this Tailscale interface (e.g. tailscale0) into pfSense's anchors, remove it on exit")
-	pfPorts     = flag.String("pf-ports", "18500-18599", "with -pf: local source ports for spoofd's own upstream connections, excluded from the redirect")
 	logFile     = flag.String("log", "", "append the log to this file as well as stderr")
 	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
 	observe     = flag.String("observe", "", "debug: comma-separated hosts to intercept and log (method, path, sizes) while forwarding them unchanged")
@@ -61,9 +57,6 @@ var stats counters
 
 // devices is the per-client on/off switch, toggled from the status page.
 var devices *deviceSwitch
-
-// upstream opens spoofd's own connections towards Apple (splices and forwarded requests).
-var upstream = &upstreamDialer{}
 
 // bssids is the neighbourhood every reply carries: access points seen in earlier requests.
 var bssids *bssidCache
@@ -121,25 +114,6 @@ func main() {
 	ln, err := net.Listen("tcp", *tlsAddr)
 	if err != nil {
 		log.Fatalf("listen %s: %v", *tlsAddr, err)
-	}
-	if *pfIface != "" {
-		ports, err := parsePortRange(*pfPorts)
-		if err != nil {
-			log.Fatalf("-pf-ports: %v", err)
-		}
-		upstream.ports = ports
-		_, tlsPort, _ := net.SplitHostPort(*tlsAddr)
-		_, httpPort, _ := net.SplitHostPort(*httpAddr)
-		if err := pfLoad(*pfIface, tlsPort, httpPort, ports); err != nil {
-			log.Fatalf("pf: %v", err)
-		}
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-		go func() {
-			<-sig
-			pfUnload()
-			os.Exit(0)
-		}()
 	}
 	log.Printf("spoofd %s: location %.6f, %.6f alt %dm; TLS on %s, status on %s", Version, loc.Latitude, loc.Longitude, loc.Altitude, *tlsAddr, *httpAddr)
 
@@ -240,7 +214,7 @@ func locationHandler(host, upstreamAddr string, loc spoof.Location, spoofing boo
 		},
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				return upstream.DialContext(ctx, network, upstreamAddr)
+				return (&net.Dialer{Timeout: dialLimit}).DialContext(ctx, network, upstreamAddr)
 			},
 			TLSClientConfig: &tls.Config{ServerName: host},
 		},
@@ -294,7 +268,7 @@ func locationHandler(host, upstreamAddr string, loc spoof.Location, spoofing boo
 
 // splice copies bytes both ways between the client and the original destination.
 func splice(client net.Conn, target string) {
-	server, err := upstream.Dial("tcp", target)
+	server, err := net.DialTimeout("tcp", target, dialLimit)
 	if err != nil {
 		log.Printf("splice to %s: %v", target, err)
 		return

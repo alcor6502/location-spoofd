@@ -69,8 +69,6 @@ On each phone, once, with the router selected as exit node in the Tailscale app:
 4. Settings › Privacy & Security › Location Services → off, then on.
 
 Open Maps. Full guide, tuning and troubleshooting: [docs/openwrt-setup.md](docs/openwrt-setup.md).
-On **pfSense** the daemon is the same; the setup differs (pf, rc.d, GUI port forward) and has
-its own guide: [docs/pfsense-setup.md](docs/pfsense-setup.md).
 
 **Daily use** — exit node on, then Location Services off/on: you are at home. Exit node off,
 then airplane mode on/off: you are back. Want the exit node without the position? The status
@@ -103,13 +101,11 @@ page has a per-device switch. `spoofctl off` on the router disables everything.
 spoof/            ARPC framing, protobuf wire rewrite, certificate authority
 cmd/spoofd/       the daemon: SNI peek, transparent TLS, splice, status page
 pb/               AppleWLoc protobuf (from apple-corelocation-experiments)
-deploy/openwrt/   OpenWrt/GL.iNet: init script, uci config, firewall rules, spoofctl, install.sh
-deploy/pfsense/   pfSense/FreeBSD: rc.d script, config sample, pf rdr snippet
-docs/             how it works, OpenWrt setup, pfSense setup, Tailscale on pfSense
+deploy/openwrt/   init script, uci config, firewall rules, spoofctl, install.sh
+docs/             how it works, OpenWrt setup
 ```
 
-CI builds `spoofd` for `linux/{arm64,arm,amd64,mipsle}` and `freebsd/{amd64,arm64}` and attaches
-them to tagged releases.
+CI builds `spoofd` for `linux/{arm64,arm,amd64,mipsle}` and attaches them to tagged releases.
 
 `make test` runs unit tests on the wire rewrite (every untouched field must survive
 byte-for-byte) and an end-to-end test of the daemon. CI builds arm64, arm, amd64 and mipsle

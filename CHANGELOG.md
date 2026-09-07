@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.0 — 2026-09-07
+
+### Removed
+- pfSense/FreeBSD support (deploy files, guide, `-pf`/`-pf-ports`, FreeBSD builds). It worked,
+  but only through a `route-to lo0` diversion of the firewall's own connections — because on
+  FreeBSD `tailscaled` forwards exit-node traffic in userspace — and it could not tell devices
+  apart. The clean way to run this next to a pfSense is a small OpenWrt VM as a dedicated exit
+  node. The Tailscale-on-pfSense notes moved out of this repository.
+
+### Kept
+- `-config FILE` (name=value options file), useful on any platform.
+
+
 ## v1.5.0 — 2026-09-07
 
 ### Added

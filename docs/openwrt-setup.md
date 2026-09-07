@@ -1,7 +1,9 @@
 # OpenWrt / GL.iNet setup
 
 Tested on a GL.iNet GL-MT5000 (Brume 3, OpenWrt 21.02, fw3/iptables). Any OpenWrt router that
-runs Tailscale as an exit node should work.
+runs Tailscale as an exit node should work. (pfSense/FreeBSD is not supported: there `tailscaled`
+forwards exit-node traffic in userspace, so no packet ever crosses the interface a redirect could
+catch.)
 
 ## What this does, in one paragraph
 
