@@ -21,6 +21,12 @@ read [how-it-works.md](how-it-works.md) first.
 - **Shellcmd** (System › Advanced, or the Shellcmd package) runs a command at boot and survives
   upgrades.
 
+## 0. One requirement first: no IPv6 towards the clients
+
+The redirect is IPv4-only (`17.0.0.0/8`). An exit node that provides IPv6 lets `locationd`
+reach Apple over IPv6 and skip `spoofd`. Keep IPv6 disabled on pfSense (System › Advanced ›
+Networking) — Tailscale itself does not need it.
+
 ## 1. Tailscale exit node
 
 System › Package Manager › install **Tailscale**. VPN › Tailscale › Settings: enable, tick

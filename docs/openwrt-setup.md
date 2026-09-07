@@ -24,6 +24,10 @@ the traffic — read [how-it-works.md](how-it-works.md) first; it assumes no pri
 
 ## Requirements
 
+- **No IPv6 towards the clients.** The redirect is IPv4-only (`17.0.0.0/8`); an exit node that
+  provides IPv6 lets `locationd` reach Apple over IPv6 and skip `spoofd`. Leave IPv6 disabled
+  on the router, or do not advertise it to the tailnet.
+
 - Tailscale installed on the router and advertising itself as **exit node**
   (GL.iNet: Applications › Tailscale; enable the exit node with `tailscale up --advertise-exit-node`
   if the UI does not expose it).

@@ -92,6 +92,9 @@ page has a per-device switch. `spoofctl off` on the router disables everything.
 - The phone trusts a private CA. It is generated on your router, used only for
   `gs-loc.apple.com`, and never leaves it — but it is a root certificate on your phone. Know
   what that means before installing it.
+- **IPv4 only, on purpose.** The redirect matches Apple's `17.0.0.0/8`. If the exit node
+  hands IPv6 to its clients, `locationd` can reach `gs-loc.apple.com` over IPv6 and bypass
+  the router entirely. Keep IPv6 off on the exit node (both routers here have it off).
 - Apple decides the wire format. When it changes, this breaks until updated.
 
 ## Repository layout
