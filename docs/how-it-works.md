@@ -63,3 +63,18 @@ HTTP/1.1 only, which is what `locationd` speaks.
 iOS caches the fused position. Toggling Location Services off and on clears it and forces
 fresh queries. Airplane mode restarts the radios but not the GPS engine, so it works to come
 back to the real position, not to leave it.
+
+## Being polite: what the phone reports back
+
+iPhones feed Apple's database with what they see. Watching an iPhone through the router for
+two days (spoofing off, "Improve Location Accuracy" on) showed exactly one channel for it:
+`locationd` posting to **`gsp10-ssl.ls.apple.com/hvr/aploc`**, an 86 KB batch about four
+hours after an hour-long walk through a dense city centre. Maps usage analytics go to
+`gsp64-ssl.ls.apple.com/hvr/v3/use` from `geoanalyticsd`. An iPad spoofed during the same
+walk never posted to `/hvr/aploc` at all — consistent with `locationd` dropping observations
+whose GPS and WiFi fixes disagree — but one device is not proof.
+
+So `spoofd` does not rely on that. For every device it spoofs, requests to `/hvr/` on those
+two hosts are read, discarded and answered `200 OK`: the phone considers the batch delivered
+and Apple never sees real access points tagged with a fake position. Devices with spoofing
+switched off are untouched. `option polite '0'` disables this.

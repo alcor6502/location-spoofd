@@ -83,6 +83,9 @@ page has a per-device switch. `spoofctl off` on the router disables everything.
 - **Location Services must be toggled by hand** after switching: iOS caches the fused fix,
   and no app, shortcut or profile is allowed to touch that switch. A Shortcut can set the exit
   node and open the right Settings page; the tap is yours.
+- **Polite by design**: a spoofed phone's crowdsourcing uploads to Apple (the batches
+  `locationd` sends about the access points it saw) are swallowed on the router, so Apple's
+  database never receives real access points tagged with a fake place.
 - The phone trusts a private CA. It is generated on your router, used only for
   `gs-loc.apple.com`, and never leaves it — but it is a root certificate on your phone. Know
   what that means before installing it.

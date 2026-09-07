@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	pb "github.com/alcor6502/location-spoofd/pb"
 	"google.golang.org/protobuf/proto"
@@ -14,6 +15,21 @@ import (
 var LocationHosts = map[string]bool{
 	"gs-loc.apple.com":    true,
 	"gs-loc-cn.apple.com": true,
+}
+
+// HarvestHosts receive what a phone has collected about the access points and cell towers it
+// saw — geo-tagged with its own position. locationd posts batches (tens of KB) to
+// gsp10-ssl.ls.apple.com/hvr/aploc a few hours after moving around; geoanalyticsd posts Maps
+// usage analytics to gsp64-ssl.ls.apple.com/hvr/v3/use. A spoofed phone would be reporting
+// real access points at a fake place, so spoofd swallows these instead of forwarding them.
+var HarvestHosts = map[string]bool{
+	"gsp10-ssl.ls.apple.com": true,
+	"gsp64-ssl.ls.apple.com": true,
+}
+
+// IsHarvestRequest reports whether req uploads collected location data to Apple.
+func IsHarvestRequest(req *http.Request) bool {
+	return HarvestHosts[req.Host] && strings.HasPrefix(req.URL.Path, "/hvr/")
 }
 
 // IsLocationRequest reports whether req is a positioning query that should be answered locally.

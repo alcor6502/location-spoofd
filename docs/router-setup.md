@@ -94,15 +94,17 @@ fix to set against GPS. It still holds the spoofed position indoors once the nei
 learned, but gives in to GPS more easily near windows or skylights. Nothing on the router can
 change that; a device with cellular data on gets the cell fix as a second vote.
 
-## Optional: stop the phone from reporting back
+## Polite mode: nothing wrong is reported back
 
-iPhones feed Apple's WiFi/cell database with what they see, geo-tagged with GPS fixes. A
-spoofed phone has no usable GPS fix indoors and reports the true position outdoors, so it is
-unlikely to send anything wrong — but if you would rather not contribute at all, turn off
-Settings › Privacy & Security › Location Services › System Services › **Improve Location
-Accuracy** (the other entries in that group, *iPhone Analytics*, *Routing & Traffic* and
-*Improve Maps*, are unrelated to positioning and can stay either way). None of these affect
-how the phone locates itself.
+iPhones feed Apple's WiFi/cell database with what they see. A spoofed phone would be
+reporting real access points at a fake place, so by default `spoofd` intercepts those uploads
+(`/hvr/` on `gsp10-ssl` and `gsp64-ssl.ls.apple.com`) from spoofed devices, discards them and
+replies `200 OK`. The status page counts them as *uploads swallowed*. Devices with spoofing
+off are normal phones. `uci set spoofd.main.polite=0` turns this off. Details and how the
+endpoint was found: [how-it-works.md](how-it-works.md).
+
+With polite mode you can leave Settings › Privacy & Security › Location Services › System
+Services › *Improve Location Accuracy* as it is.
 
 ## Time zone
 

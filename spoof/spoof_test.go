@@ -273,6 +273,12 @@ func TestIsLocationRequest(t *testing.T) {
 	if IsLocationRequest(mk("GET", "gs-loc.apple.com", "/clls/wloc")) || IsLocationRequest(mk("POST", "www.apple.com", "/clls/wloc")) {
 		t.Error("non-location requests matched")
 	}
+	if !IsHarvestRequest(mk("POST", "gsp10-ssl.ls.apple.com", "/hvr/aploc")) || !IsHarvestRequest(mk("POST", "gsp64-ssl.ls.apple.com", "/hvr/v3/use")) {
+		t.Error("harvest uploads should match")
+	}
+	if IsHarvestRequest(mk("POST", "gsp-ssl.ls.apple.com", "/dispatcher.arpc")) || IsHarvestRequest(mk("GET", "gsp10-ssl.ls.apple.com", "/other")) {
+		t.Error("non-harvest requests matched")
+	}
 }
 
 func TestCoordinateEncoding(t *testing.T) {

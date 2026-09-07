@@ -37,6 +37,7 @@ var (
 	httpAddr    = flag.String("http", ":18080", "status page and CA download (http://<router>:18080/ca.crt)")
 	caDir       = flag.String("ca-dir", "/etc/spoofd", "directory holding ca.pem and ca-key.pem (created if missing)")
 	verbose     = flag.Bool("v", false, "log every connection, not just spoofed requests")
+	polite      = flag.Bool("polite", true, "swallow the location data spoofed devices would upload to Apple (/hvr/ on gsp10/gsp64)")
 	showVersion = flag.Bool("version", false, "print version and exit")
 	logFile     = flag.String("log", "", "append the log to this file as well as stderr")
 	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
@@ -45,7 +46,7 @@ var (
 )
 
 type counters struct {
-	conns, spliced, mitm, spoofed, passthrough atomic.Int64
+	conns, spliced, mitm, spoofed, passthrough, swallowed atomic.Int64
 }
 
 var stats counters
@@ -156,7 +157,7 @@ func handleConn(c net.Conn, certs *spoof.HostCerts, loc spoof.Location) {
 
 	// Spoofing applies to location hosts of enabled devices. Observed hosts are terminated for
 	// every device (logging only, forwarded unchanged) — a disabled device stays a normal phone.
-	spoofing := spoof.LocationHosts[sni] && devices.Enabled(c.RemoteAddr())
+	spoofing := (spoof.LocationHosts[sni] || (*polite && spoof.HarvestHosts[sni])) && devices.Enabled(c.RemoteAddr())
 	if !spoofing && !observed[sni] {
 		stats.spliced.Add(1)
 		target := origDst
@@ -206,6 +207,14 @@ func locationHandler(host, upstream string, loc spoof.Location, spoofing bool) h
 		},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if spoofing && *polite && spoof.IsHarvestRequest(r) {
+			// Read and discard, then say thanks: locationd marks the batch as delivered.
+			n, _ := io.Copy(io.Discard, r.Body)
+			stats.swallowed.Add(1)
+			log.Printf("%s: swallowed %s %s%s (%dB) from %s", r.RemoteAddr, r.Method, host, r.URL.Path, n, r.Header.Get("User-Agent"))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if !spoofing || !spoof.IsLocationRequest(r) {
 			stats.passthrough.Add(1)
 			if observed[host] {
@@ -313,7 +322,7 @@ func serveStatus(addr string, ca *tls.Certificate, loc spoof.Location) {
 			loc.Latitude, loc.Longitude, loc.Altitude, loc.HorizontalAccuracy,
 			ca.Leaf.NotAfter.Format("2006-01-02"),
 			clientIP(addr), strings.ToUpper(onOff(enabled)), next, label,
-			stats.conns.Load(), stats.spliced.Load(), stats.mitm.Load(), stats.spoofed.Load(), stats.passthrough.Load())
+			stats.conns.Load(), stats.spliced.Load(), stats.mitm.Load(), stats.spoofed.Load(), stats.passthrough.Load(), stats.swallowed.Load())
 	})
 	if err := http.ListenAndServe(addr, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("status server: %v", err)
@@ -353,7 +362,8 @@ code{background:#eee;padding:0 .3em}button{font:inherit;padding:.5em 1em}ol li{m
 </ol>
 <h2>Counters</h2>
 <table><tr><td>connections</td><td>%d</td></tr><tr><td>spliced (other hosts)</td><td>%d</td></tr>
-<tr><td>intercepted</td><td>%d</td></tr><tr><td>spoofed queries</td><td>%d</td></tr><tr><td>forwarded to Apple</td><td>%d</td></tr></table>
+<tr><td>intercepted</td><td>%d</td></tr><tr><td>spoofed queries</td><td>%d</td></tr><tr><td>forwarded to Apple</td><td>%d</td></tr>
+<tr><td>uploads swallowed</td><td>%d</td></tr></table>
 </body></html>`
 
 // dumpExchange writes the raw request body, the reply and the request headers for offline

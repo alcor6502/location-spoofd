@@ -9,6 +9,8 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,5 +126,33 @@ func TestBSSIDCacheOrderAndPersistence(t *testing.T) {
 	}
 	if again := newBSSIDCache(dir, 3).Neighbours(); len(again) != 3 || again[0] != "aa:aa:aa:aa:aa:04" {
 		t.Errorf("persistence wrong: %v", again)
+	}
+}
+
+// A spoofed device's harvest upload must be accepted (200) and never reach the upstream.
+func TestPoliteSwallowsHarvest(t *testing.T) {
+	upstreamHit := false
+	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { upstreamHit = true }))
+	defer up.Close()
+
+	h := locationHandler("gsp10-ssl.ls.apple.com", up.Listener.Addr().String(), spoof.DefaultAccuracy(1, 2), true)
+	req := httptest.NewRequest(http.MethodPost, "https://gsp10-ssl.ls.apple.com/hvr/aploc", strings.NewReader(strings.Repeat("x", 5000)))
+	req.Host = "gsp10-ssl.ls.apple.com"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || upstreamHit {
+		t.Errorf("code=%d upstreamHit=%v; want 200 and no upstream call", rec.Code, upstreamHit)
+	}
+
+	// A device with spoofing off is a normal phone: the upload is forwarded.
+	h2 := locationHandler("gsp10-ssl.ls.apple.com", up.Listener.Addr().String(), spoof.DefaultAccuracy(1, 2), false)
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "https://gsp10-ssl.ls.apple.com/hvr/aploc", strings.NewReader("x"))
+	req2.Host = "gsp10-ssl.ls.apple.com"
+	// The test upstream has a self-signed cert; the proxy's transport verifies against host name, so
+	// forwarding fails with 502 here — what matters is that it was attempted.
+	h2.ServeHTTP(rec2, req2)
+	if rec2.Code == http.StatusOK && !upstreamHit {
+		t.Error("passthrough device must not be answered locally")
 	}
 }

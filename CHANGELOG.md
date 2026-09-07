@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 — 2026-09-07
+
+### Added
+- **Polite mode** (default on): the crowdsourcing uploads of spoofed devices
+  (`gsp10-ssl.ls.apple.com/hvr/aploc` from `locationd`, `gsp64-ssl.ls.apple.com/hvr/v3/use`
+  from `geoanalyticsd`) are read, discarded and answered `200 OK` on the router. Endpoint
+  found by observing a real phone for two days. `option polite` in uci, *uploads swallowed*
+  on the status page.
+- A device switched off on the status page is now a fully normal phone (observed hosts are
+  still logged when `observe` is set).
+- `spoofd -log FILE` / `log_file` uci option.
 
 ### Added
 - Debug aids: `spoofd -observe host,...` logs method, path, sizes and user-agent of requests to
