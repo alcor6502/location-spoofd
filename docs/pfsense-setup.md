@@ -7,7 +7,9 @@ against pfSense 2.9 with the **Tailscale package** (0.1.9) in its default TUN mo
 (`tailscaled -tun tailscale0`).
 
 If any concept here is unfamiliar — exit node, certificate, why the router sees the traffic —
-read [how-it-works.md](how-it-works.md) first.
+read [how-it-works.md](how-it-works.md) first. If Tailscale on the pfSense is not yet set up, or
+has never been checked, start with [tailscale-pfsense.md](tailscale-pfsense.md): `spoofd`
+depends on the interface group, the firewall rules and the DNS described there.
 
 ## What pfSense gives us
 

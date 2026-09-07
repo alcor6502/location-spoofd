@@ -105,7 +105,7 @@ cmd/spoofd/       the daemon: SNI peek, transparent TLS, splice, status page
 pb/               AppleWLoc protobuf (from apple-corelocation-experiments)
 deploy/openwrt/   OpenWrt/GL.iNet: init script, uci config, firewall rules, spoofctl, install.sh
 deploy/pfsense/   pfSense/FreeBSD: rc.d script, config sample, pf rdr snippet
-docs/             how it works, router setup, pfSense setup
+docs/             how it works, OpenWrt setup, pfSense setup, Tailscale on pfSense
 ```
 
 CI builds `spoofd` for `linux/{arm64,arm,amd64,mipsle}` and `freebsd/{amd64,arm64}` and attaches
