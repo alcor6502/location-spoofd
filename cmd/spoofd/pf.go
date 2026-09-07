@@ -7,12 +7,17 @@ import (
 	"strings"
 )
 
-// pf integration for FreeBSD/pfSense: spoofd loads its own redirect into pfSense's extension
-// anchors (natearly/spoofd, userrules/spoofd), which pfSense keeps across ruleset reloads, and
-// removes it on shutdown. Enabled with -pf <interface>. Fail-open: if the anchors are ever
-// flushed, phones just get their real position until spoofd is restarted.
+// pf integration for FreeBSD/pfSense: spoofd loads its own redirect into anchors that pfSense
+// attaches to its main ruleset and keeps across reloads, and removes them on shutdown. Enabled
+// with -pf <interface>. Fail-open: if the anchors are ever flushed, phones just get their real
+// position until spoofd is restarted.
+//
+// On FreeBSD, rdr rules inside an anchor are only evaluated through an `rdr-anchor` attachment
+// (nat-anchor does not include them). pfSense's ruleset has exactly one: `rdr-anchor
+// "tftp-proxy/*"`, so the redirect lives in a sub-anchor there; the pass rules go into
+// `anchor "userrules/*"`.
 const (
-	pfNatAnchor   = "natearly/spoofd"
+	pfNatAnchor   = "tftp-proxy/spoofd"
 	pfRulesAnchor = "userrules/spoofd"
 )
 

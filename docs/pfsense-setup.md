@@ -16,9 +16,10 @@ depends on the interface group, the firewall rules and the DNS described there.
 - The Tailscale package creates a real interface, `tailscale0`, that pf can match on. pfSense
   shows it as **Tailscale** in Firewall › Rules. It cannot be assigned as an OPT interface and
   does not appear in NAT › Port Forward — which is why `spoofd` installs the redirect itself.
-- pfSense regenerates its ruleset, but keeps the extension anchors `natearly` and `userrules`
-  across reloads. `spoofd -pf tailscale0` loads its two rules there at start and removes them at
-  stop. Should they ever be flushed (`pfctl -F all`), phones simply get their real position
+- pfSense regenerates its ruleset, but keeps sub-anchors across reloads. `spoofd -pf tailscale0`
+  loads its redirect into `tftp-proxy/spoofd` (the only `rdr-anchor` pfSense attaches — `rdr`
+  rules are invisible through a `nat-anchor` on FreeBSD) and its pass rules into
+  `userrules/spoofd` at start, and removes both at stop. Should they ever be flushed (`pfctl -F all`), phones simply get their real position
   until `spoofd` restarts: the failure mode is open, never broken positioning.
 - **Shellcmd** (System › Advanced, or the Shellcmd package) runs a command at boot and survives
   upgrades.
@@ -70,14 +71,14 @@ type *shellcmd*, after any command that (re)starts Tailscale. **To stop**:
 ## 3. What the redirect is
 
 ```
-natearly/spoofd:   rdr pass on tailscale0 inet proto tcp from any to 17.0.0.0/8 port 443 -> 127.0.0.1 port 18443
+tftp-proxy/spoofd: rdr pass on tailscale0 inet proto tcp from any to 17.0.0.0/8 port 443 -> 127.0.0.1 port 18443
 userrules/spoofd:  pass in quick on tailscale0 proto tcp to 127.0.0.1 port 18443
                    pass in quick on tailscale0 proto tcp to (self) port 18080
 ```
 
 Only traffic arriving from the Tailscale interface (exit-node clients), only TCP 443, only
 towards Apple's `17.0.0.0/8`. `spoofd` then reads the server name and splices every host that is
-not the location service straight through. `pfctl -a natearly/spoofd -s nat` shows it.
+not the location service straight through. `pfctl -a tftp-proxy/spoofd -s nat` shows it.
 
 ## 4. Set up each phone (once)
 
