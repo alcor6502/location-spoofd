@@ -38,7 +38,8 @@ is one) and Tailscale cannot run together.
    the configured coordinates, byte-for-byte compatible with what Apple would send.
 5. iOS trilaterates a point with almost no uncertainty and takes it.
 
-Wire format and details: [docs/how-it-works.md](docs/how-it-works.md).
+The long version — how iPhones locate themselves, the protocol, TLS and the certificate, why
+the router sees the traffic at all, and the security model: [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Quick start
 
