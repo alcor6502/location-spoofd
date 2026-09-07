@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -154,5 +156,21 @@ func TestPoliteSwallowsHarvest(t *testing.T) {
 	h2.ServeHTTP(rec2, req2)
 	if rec2.Code == http.StatusOK && !upstreamHit {
 		t.Error("passthrough device must not be answered locally")
+	}
+}
+
+func TestConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spoofd.conf")
+	os.WriteFile(path, []byte("# comment\nlat=48.858370\nlon 2.294481\nhacc=\"1\"\n-alt=35\n"), 0o644)
+	if err := loadConfigFile(path); err != nil {
+		t.Fatal(err)
+	}
+	if *lat != 48.858370 || *lon != 2.294481 || *hAcc != 1 || *alt != 35 {
+		t.Errorf("parsed lat=%v lon=%v hacc=%v alt=%v", *lat, *lon, *hAcc, *alt)
+	}
+	os.WriteFile(path, []byte("nosuchoption=1\n"), 0o644)
+	if err := loadConfigFile(path); err == nil {
+		t.Error("unknown option must be an error")
 	}
 }

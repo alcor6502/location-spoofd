@@ -16,9 +16,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/alcor6502/location-spoofd/spoof"
@@ -39,6 +41,8 @@ var (
 	verbose     = flag.Bool("v", false, "log every connection, not just spoofed requests")
 	polite      = flag.Bool("polite", true, "swallow the location data spoofed devices would upload to Apple (/hvr/ on gsp10/gsp64)")
 	showVersion = flag.Bool("version", false, "print version and exit")
+	configFile  = flag.String("config", "", "read options from this file (name=value per line); later flags override")
+	pfIface     = flag.String("pf", "", "FreeBSD/pfSense: load the pf redirect for this Tailscale interface (e.g. tailscale0) into pfSense's anchors, remove it on exit")
 	logFile     = flag.String("log", "", "append the log to this file as well as stderr")
 	dumpDir     = flag.String("dump", "", "debug: write each location request/response as raw files into this directory")
 	observe     = flag.String("observe", "", "debug: comma-separated hosts to intercept and log (method, path, sizes) while forwarding them unchanged")
@@ -65,6 +69,12 @@ var observed = map[string]bool{}
 
 func main() {
 	flag.Parse()
+	if *configFile != "" {
+		if err := loadConfigFile(*configFile); err != nil {
+			log.Fatalf("config: %v", err)
+		}
+		flag.Parse() // command-line flags win over the file
+	}
 	log.SetFlags(log.Ldate | log.Ltime)
 	if *logFile != "" {
 		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -107,6 +117,20 @@ func main() {
 	ln, err := net.Listen("tcp", *tlsAddr)
 	if err != nil {
 		log.Fatalf("listen %s: %v", *tlsAddr, err)
+	}
+	if *pfIface != "" {
+		_, tlsPort, _ := net.SplitHostPort(*tlsAddr)
+		_, httpPort, _ := net.SplitHostPort(*httpAddr)
+		if err := pfLoad(*pfIface, tlsPort, httpPort); err != nil {
+			log.Fatalf("pf: %v", err)
+		}
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sig
+			pfUnload()
+			os.Exit(0)
+		}()
 	}
 	log.Printf("spoofd %s: location %.6f, %.6f alt %dm; TLS on %s, status on %s", Version, loc.Latitude, loc.Longitude, loc.Altitude, *tlsAddr, *httpAddr)
 

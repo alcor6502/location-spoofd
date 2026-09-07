@@ -1,24 +1,28 @@
-# spoofd configuration for pfSense. Copy to /usr/local/etc/spoofd.conf and edit (shell syntax).
+# spoofd configuration for pfSense — /usr/local/etc/spoofd.conf
+# One option per line, name=value; every line is a spoofd flag (spoofd -h lists them).
 
 # Spoofed location: WGS-84 decimal degrees (right-click a point in Google/Apple Maps).
-LAT=""
-LON=""
-ALT=0          # altitude in metres, optional
+lat=
+lon=
+alt=0            # altitude, metres
 
-# Reported accuracy in metres; smaller = iOS trusts this fix more. 1 is the minimum.
-HACC=5
-VACC=3
+# Reported accuracy, metres. Smaller = iOS trusts this fix more; 1 is the minimum.
+hacc=5
+vacc=3
 
-# Tailscale interface as seen by pf (tailscaled -tun ...). tailscale0 on pfSense.
-TS_IF=tailscale0
+# Tailscale interface: spoofd loads the pf redirect for it into pfSense's anchors and
+# removes it on stop. Leave empty to manage pf yourself.
+pf=tailscale0
 
-# Ports spoofd listens on: TLS_PORT receives the redirected HTTPS, HTTP_PORT serves the CA
-# download and the status page.
-TLS_PORT=18443
-HTTP_PORT=18080
+# Ports (18443 receives the redirected HTTPS, 18080 serves the CA download and status page).
+listen=:18443
+http=:18080
 
-# Polite mode (1 = on): discard the location data a spoofed phone would upload to Apple.
-POLITE=1
+# Where the CA, the neighbourhood cache and the per-device switch live.
+ca-dir=/usr/local/etc/spoofd
 
-# Master switch (1 = start at boot).
-ENABLED=1
+# Polite mode: discard the location data a spoofed phone would upload to Apple.
+polite=true
+
+# Log file (the daemon also logs to stderr).
+log=/var/log/spoofd.log
