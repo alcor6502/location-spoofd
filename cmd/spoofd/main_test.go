@@ -162,7 +162,7 @@ func TestPoliteSwallowsHarvest(t *testing.T) {
 func TestConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "spoofd.conf")
-	os.WriteFile(path, []byte("# comment\nlat=48.858370\nlon 2.294481\nhacc=\"1\"\n-alt=35\n"), 0o644)
+	os.WriteFile(path, []byte("# comment\nlat=48.858370\nlon 2.294481   # trailing comment\nhacc=\"1\"\n-alt=35\n"), 0o644)
 	if err := loadConfigFile(path); err != nil {
 		t.Fatal(err)
 	}

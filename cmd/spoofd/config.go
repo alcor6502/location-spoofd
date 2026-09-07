@@ -22,7 +22,10 @@ func loadConfigFile(path string) error {
 	for sc.Scan() {
 		line++
 		s := strings.TrimSpace(sc.Text())
-		if s == "" || strings.HasPrefix(s, "#") {
+		if i := strings.Index(s, "#"); i >= 0 { // trailing comments
+			s = strings.TrimSpace(s[:i])
+		}
+		if s == "" {
 			continue
 		}
 		name, value, ok := strings.Cut(s, "=")
