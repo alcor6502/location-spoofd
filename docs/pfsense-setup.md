@@ -1,45 +1,51 @@
 # pfSense setup
 
-pfSense is FreeBSD-based and uses the `pf` firewall, so the pieces differ from OpenWrt but the
-idea is identical: the router is a Tailscale exit node, a redirect sends the phone's HTTPS
-traffic bound for Apple to `spoofd`, and the phone trusts a certificate the router serves.
-
-> Status: the FreeBSD build and the daemon are shared with the OpenWrt version and covered by
-> the same tests, but the pfSense integration steps below have not yet been run on real pfSense
-> hardware. Treat this as a first draft and verify each step on your box; corrections welcome.
+pfSense is FreeBSD with the `pf` firewall. The daemon is the same as on OpenWrt; what differs
+is how the redirect is installed and how the service starts. Written against pfSense 2.9 with
+the **Tailscale package** (0.1.9) in its default TUN mode (`tailscaled -tun tailscale0`).
 
 If any concept here is unfamiliar — exit node, certificate, why the router sees the traffic —
 read [how-it-works.md](how-it-works.md) first.
 
-## 1. Tailscale exit node on pfSense
+## What pfSense gives us, and what it does not
 
-Install the **Tailscale** package (System > Package Manager), sign in, and make this box an
-exit node. If the package UI does not expose it, add to the Tailscale settings' advanced args,
-or from a shell:
+- The Tailscale package creates a real interface, `tailscale0`, that pf can match on. pfSense
+  shows it as **Tailscale** in Firewall › Rules (the package adds the tab), with the rules you
+  wrote for it — typically "allow the hosts in an alias".
+- It does **not** offer `tailscale0` in the NAT › Port Forward interface list, and anything
+  typed by hand into the pf ruleset is lost the next time pfSense regenerates it.
+- It does provide extension points for exactly this: the anchors `natearly` and `userrules`
+  are attached to the main ruleset and are kept across reloads. `spoofd.sh` loads its two rules
+  there. Should they ever be flushed (a full `pfctl -F all`), phones simply get their real
+  position until `spoofd.sh pf` runs again — the failure mode is open, never broken positioning.
+- The **Shellcmd** package (System › Package Manager) is the supported way to run a command at
+  boot; it survives upgrades where a stray rc.d script might not.
 
-```sh
-tailscale up --advertise-exit-node --reset
-```
+## 1. Tailscale exit node
 
-Approve the exit node in the Tailscale admin console. Assign the Tailscale interface in pfSense
-(Interfaces > Assignments — it usually appears as `tailscale0`) so you can write firewall and
-NAT rules on it; note the name pfSense gives it (e.g. `OPT1`).
+System › Package Manager › install **Tailscale**. In VPN › Tailscale › Settings: enable, tick
+**Advertise Exit Node**, save. Approve the exit node in the Tailscale admin console.
+
+Check the firewall rules on the **Tailscale** tab: if they allow only an alias of hosts (the
+package's example does), the phones that will use this box as exit node must be in that alias,
+or they cannot get out at all — spoofed or not.
 
 ## 2. Install spoofd
 
-Copy the FreeBSD binary and the helper files to the firewall (from a machine with this repo, or
-download `spoofd-freebsd-amd64` from the [Releases](https://github.com/alcor6502/location-spoofd/releases)
-page — pfSense on standard hardware is `amd64`):
+Get `spoofd-freebsd-amd64` from the [Releases](https://github.com/alcor6502/location-spoofd/releases)
+page (pfSense on ordinary hardware and VMs is `amd64`; `uname -m` says so), then from the repo:
 
 ```sh
-scp spoofd-freebsd-amd64            root@<pfsense>:/usr/local/sbin/spoofd
-scp deploy/pfsense/spoofd.sh        root@<pfsense>:/usr/local/etc/rc.d/spoofd.sh
-scp deploy/pfsense/spoofd.conf.sample root@<pfsense>:/usr/local/etc/spoofd.conf
-ssh root@<pfsense> 'chmod 755 /usr/local/sbin/spoofd /usr/local/etc/rc.d/spoofd.sh'
+scp spoofd-freebsd-amd64 admin@<pfsense>:/tmp/spoofd
+scp deploy/pfsense/spoofd.sh deploy/pfsense/spoofd.conf.sample deploy/pfsense/install.sh admin@<pfsense>:/tmp/
+ssh admin@<pfsense> sh /tmp/install.sh
 ```
 
-Edit `/usr/local/etc/spoofd.conf` and set your coordinates (decimal degrees; right-click a
-point in Google or Apple Maps):
+(`admin` lands in pfSense's console menu; option **8** gives a shell. SSH must be enabled in
+System › Advanced › Secure Shell.)
+
+Edit `/usr/local/etc/spoofd.conf` — coordinates in decimal degrees, right-click a point in
+Google or Apple Maps:
 
 ```sh
 LAT="48.858370"
@@ -47,50 +53,36 @@ LON="2.294481"
 ALT=35
 ```
 
-Start it and check:
+Start and check:
 
 ```sh
 /usr/local/etc/rc.d/spoofd.sh start
 /usr/local/etc/rc.d/spoofd.sh status
 ```
 
-pfSense runs every `*.sh` in `/usr/local/etc/rc.d/` at boot, so it will start on reboot. The CA
-(`/var/db/spoofd/ca.pem`, valid ten years) and the status page are now on the firewall.
+`status` must say both *running* and *pf redirect: loaded*. The log is `/var/log/spoofd.log`.
 
-## 3. The redirect
+To start at boot: Services › Shellcmd › Add, command `/usr/local/etc/rc.d/spoofd.sh start`,
+type *shellcmd*.
 
-`spoofd` only sees traffic that pf sends to it. The clean, persistent way on pfSense is the GUI,
-because pfSense regenerates its `pf` ruleset and would drop hand-edited rules.
+## 3. What the redirect is
 
-First make an alias for Apple's address block (Firewall > Aliases > add): type **Network**, name
-`Apple_Net`, value `17.0.0.0/8`.
+Two rules, loaded by the script into pfSense's anchors, nothing in the GUI:
 
-Then Firewall > NAT > **Port Forward** > Add:
+```
+natearly/spoofd:   rdr pass on tailscale0 inet proto tcp from any to 17.0.0.0/8 port 443 -> 127.0.0.1 port 18443
+userrules/spoofd:  pass in quick on tailscale0 proto tcp to 127.0.0.1 port 18443
+                   pass in quick on tailscale0 proto tcp to (self) port 18080
+```
 
-| Field | Value |
-|-------|-------|
-| Interface | your Tailscale interface (e.g. `OPT1`) |
-| Protocol | TCP |
-| Destination | Address or Alias → `Apple_Net` |
-| Destination port range | HTTPS (443) to HTTPS (443) |
-| Redirect target IP | `127.0.0.1` |
-| Redirect target port | 18443 |
-| Description | spoofd |
-
-Leave "Filter rule association" at **Add associated filter rule** so the matching pass rule is
-created for you.
-
-Then Firewall > Rules > your Tailscale interface > add a rule allowing TCP to **This Firewall**
-port `18080` (the CA download and status page).
-
-> Redirecting to `127.0.0.1` can be finicky on pfSense (it keeps `lo0` skipped). If phones do
-> not get a spoofed location and the status page shows no intercepted queries, set the redirect
-> target to the firewall's own Tailscale interface address instead — `spoofd` listens on all
-> interfaces, so either works once pf actually delivers the connection.
+Only traffic arriving from the Tailscale interface (exit-node clients), only TCP 443, only
+towards Apple's `17.0.0.0/8`. `spoofd` then inspects the server name and splices every host
+that is not the location service straight through. `spoofd.sh unpf` removes both rules;
+`spoofd.sh stop` removes them and stops the daemon.
 
 ## 4. Set up each phone (once)
 
-With this firewall selected as exit node in the Tailscale app:
+With this box selected as exit node in the Tailscale app:
 
 1. Safari → `http://<pfsense tailscale IP>:18080/ca.crt` → allow the profile download.
 2. Settings › General › VPN & Device Management → install **Location Spoofer CA**.
@@ -98,17 +90,16 @@ With this firewall selected as exit node in the Tailscale app:
    TLS handshake fails and nothing happens.
 4. Settings › Privacy & Security › Location Services → off, wait ten seconds, on.
 
-Open Maps. Everything after this — daily use, the per-device switch, polite mode, time zone,
-tuning `hacc`/`vacc`, renewing the CA — works exactly as in [openwrt-setup.md](openwrt-setup.md);
-only the config file (`/usr/local/etc/spoofd.conf`, then `spoofd.sh restart`) replaces `uci`.
+Open Maps. Everything from here — daily use, the per-device switch on the status page, polite
+mode, time zone, tuning `HACC`/`VACC`, renewing the CA — is as in
+[openwrt-setup.md](openwrt-setup.md); only the config file (`/usr/local/etc/spoofd.conf`, then
+`spoofd.sh restart`) replaces `uci`, and `spoofd.sh start|stop|status` replaces `spoofctl`.
 
 ## Notes
 
 - **Original destination**: on Linux `spoofd` recovers the pre-redirect address with
-  `SO_ORIGINAL_DST`; FreeBSD's equivalent (`DIOCNATLOOK` on `/dev/pf`) is not implemented yet.
-  Without it, non-Apple hosts that are terminated for observation would be reached by their SNI
-  name. This does not affect normal use: location hosts are answered locally and everything else
-  is spliced by SNI, which for Apple's hosts resolves to the same place.
-- **No `spoofctl`**: use `spoofd.sh start|stop|restart|status`. To disable spoofing without
-  removing the NAT rule, set `ENABLED=0` in the conf and restart, then also disable the Port
-  Forward in the GUI (otherwise the redirect points at a stopped daemon).
+  `SO_ORIGINAL_DST`; the FreeBSD equivalent (`DIOCNATLOOK` on `/dev/pf`) is not implemented.
+  Spliced hosts are reached by their SNI name instead, which for Apple's hosts resolves to the
+  same servers. Normal use is unaffected.
+- **Ports** 18443/18080 avoid pfSense's own web GUI; change them in the conf if needed (the
+  script derives the pf rules from the conf).

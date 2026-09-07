@@ -1,17 +1,19 @@
-# spoofd configuration for pfSense / FreeBSD.
-# Copy to /usr/local/etc/spoofd.conf and edit. Sourced by the rc.d script (shell syntax).
+# spoofd configuration for pfSense. Copy to /usr/local/etc/spoofd.conf and edit (shell syntax).
 
 # Spoofed location: WGS-84 decimal degrees (right-click a point in Google/Apple Maps).
 LAT=""
 LON=""
 ALT=0          # altitude in metres, optional
 
-# Reported accuracy in metres (small = iOS trusts this fix over a weak GPS one).
+# Reported accuracy in metres; smaller = iOS trusts this fix more. 1 is the minimum.
 HACC=5
 VACC=3
 
-# Ports spoofd listens on. TLS_PORT must match the pf rdr rule; HTTP_PORT serves the
-# CA download and the status page.
+# Tailscale interface as seen by pf (tailscaled -tun ...). tailscale0 on pfSense.
+TS_IF=tailscale0
+
+# Ports spoofd listens on: TLS_PORT receives the redirected HTTPS, HTTP_PORT serves the CA
+# download and the status page.
 TLS_PORT=18443
 HTTP_PORT=18080
 
