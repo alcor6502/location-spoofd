@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.4.0 — 2026-09-07
+
+### Added
+- **pfSense / FreeBSD support**: `freebsd/amd64` and `freebsd/arm64` binaries, an rc.d launcher,
+  a config sample and a pf `rdr` snippet in `deploy/pfsense/`, and a setup guide
+  ([docs/pfsense-setup.md](docs/pfsense-setup.md)). The daemon is unchanged; only the
+  integration differs. Not yet tested on real pfSense hardware.
+- The CA expiry is warned about in the log at startup and on the status page, starting 60 days
+  before it lapses.
+
+### Docs
+- `docs/router-setup.md` gains a plain-language intro, a small glossary (SSH, Tailscale IP,
+  coordinates) and a no-Go install path for non-developers.
+- `docs/how-it-works.md` rewritten as a self-contained explanation for readers new to the
+  protocols, TLS and Tailscale, including why Apple leaves `locationd` unpinned.
+
+
 ## v1.3.0 — 2026-09-07
 
 ### Added

@@ -3,25 +3,55 @@
 Tested on a GL.iNet GL-MT5000 (Brume 3, OpenWrt 21.02, fw3/iptables). Any OpenWrt router that
 runs Tailscale as an exit node should work.
 
+## What this does, in one paragraph
+
+Your phone, when it travels through your home router (as a Tailscale **exit node** — a device
+that routes all of another device's Internet traffic), asks Apple where it is. This installs a
+small program, `spoofd`, on the router that answers that question with a fixed location of your
+choosing. You install one certificate on the phone so it trusts the answer. Nothing else runs
+on the phone. If any of these words are new — exit node, certificate, why the router can see
+the traffic — read [how-it-works.md](how-it-works.md) first; it assumes no prior knowledge.
+
+## Words you will meet here
+
+- **SSH** — a way to type commands on the router from your computer's terminal:
+  `ssh root@<router address>`, then the router's password. On the GL.iNet the address is
+  usually `192.168.8.1` on its own network, or its Tailscale address from anywhere.
+- **Tailscale IP** — the `100.x.y.z` address the router has inside your private Tailscale
+  network; stable, reachable from your phone wherever you are.
+- **coordinates** — latitude and longitude in decimal degrees, e.g. `48.858370, 2.294481`.
+  Right-click a spot in Google Maps or Apple Maps and it shows them; copy the two numbers.
+
 ## Requirements
 
 - Tailscale installed on the router and advertising itself as **exit node**
   (GL.iNet: Applications › Tailscale; enable the exit node with `tailscale up --advertise-exit-node`
   if the UI does not expose it).
 - SSH access as root.
-- A router binary: `make spoofd` builds `dist/spoofd-linux-{arm64,arm,amd64,mipsle}`, or take
-  one from the Releases page. `cat /etc/openwrt_release` tells you the architecture.
+- The right `spoofd` binary for your router's CPU. Run `uname -m` on the router (over SSH):
+  `aarch64` → `arm64`, `armv7l` → `arm`, `x86_64` → `amd64`, `mips` → `mipsle`. The GL-MT5000
+  is `arm64`.
 
 ## Install
 
-From your Mac/PC:
+**If you have Go installed** (developers): from this repository on your computer,
 
 ```sh
-make deploy ROUTER=root@192.168.8.1        # ARCH=arm64 by default
+make deploy ROUTER=root@192.168.8.1        # ARCH=arm64 by default; set ARCH= for others
 ```
 
-or by hand: copy `dist/spoofd-linux-<arch>` as `/tmp/spoofd` and the five files in
-`deploy/openwrt/` to `/tmp/`, then `sh /tmp/install.sh` on the router.
+**Without Go** (anyone): download the matching `spoofd-linux-<arch>` from the
+[Releases](https://github.com/alcor6502/location-spoofd/releases) page, then from a terminal
+in your Downloads folder:
+
+```sh
+scp -O spoofd-linux-arm64 root@192.168.8.1:/tmp/spoofd
+scp -O deploy/openwrt/* root@192.168.8.1:/tmp/          # the five files from this repo
+ssh root@192.168.8.1 sh /tmp/install.sh
+```
+
+(`deploy/openwrt/` holds `spoofd.init`, `spoofd.config`, `firewall.spoofd`, `spoofctl` and
+`install.sh` — five small text files; grab them from this repo's `deploy/openwrt/` folder.)
 
 Then set your coordinates (decimal degrees; right-click a point in Google Maps or Apple Maps)
 and start:

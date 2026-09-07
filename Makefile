@@ -10,7 +10,7 @@ DIST     = dist
 ROUTER  ?= root@192.168.8.1
 ARCH    ?= arm64
 
-PLATFORMS = linux/arm64 linux/arm linux/amd64 linux/mipsle
+PLATFORMS = linux/arm64 linux/arm linux/amd64 linux/mipsle freebsd/amd64 freebsd/arm64
 
 .PHONY: all test spoofd deploy clean
 

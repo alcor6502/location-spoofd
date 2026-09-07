@@ -1,0 +1,22 @@
+# spoofd configuration for pfSense / FreeBSD.
+# Copy to /usr/local/etc/spoofd.conf and edit. Sourced by the rc.d script (shell syntax).
+
+# Spoofed location: WGS-84 decimal degrees (right-click a point in Google/Apple Maps).
+LAT=""
+LON=""
+ALT=0          # altitude in metres, optional
+
+# Reported accuracy in metres (small = iOS trusts this fix over a weak GPS one).
+HACC=5
+VACC=3
+
+# Ports spoofd listens on. TLS_PORT must match the pf rdr rule; HTTP_PORT serves the
+# CA download and the status page.
+TLS_PORT=18443
+HTTP_PORT=18080
+
+# Polite mode (1 = on): discard the location data a spoofed phone would upload to Apple.
+POLITE=1
+
+# Master switch (1 = start at boot).
+ENABLED=1
