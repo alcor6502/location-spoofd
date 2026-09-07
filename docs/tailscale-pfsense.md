@@ -38,6 +38,22 @@ userspace and opens the outbound connections itself. So exit-node traffic never 
 connections from the firewall's own WAN address. Firewall rules on the Tailscale tab still
 matter for traffic *to* the box (SSH, DNS, the web GUI) and for subnet routes.
 
+### 1.1c The group can be lost again without a reboot
+
+Seen on pfSense 2.9 / package 0.1.9: after a restart of `tailscaled` triggered from the package
+(saving its settings, an auth change), `tailscale0` came back in group `tun` only. Everything
+entering from the tailnet was silently dropped again — but exit-node clients still browsed,
+because their traffic is forwarded in userspace and never touches the interface (1.1b), which
+makes the failure even harder to notice. After any change to the Tailscale settings, check
+`ifconfig tailscale0 | grep groups` and, if `Tailscale` is missing, restore it:
+
+```sh
+ifconfig tailscale0 group Tailscale
+```
+
+It is idempotent. If you would rather not think about it, a cron entry (Services › Cron
+package) running that command every few minutes is ugly but harmless.
+
 ### 1.2 Do not restart Tailscale from Shellcmd (pfSense ≥ 2.9)
 
 Older packages started too early and people added a boot-time
