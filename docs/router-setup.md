@@ -162,8 +162,20 @@ real position, and the phone needs another Location Services off/on afterwards.
 | `vacc` | 3 | vertical accuracy, metres |
 | `alt` | 0 | altitude, metres |
 
-Accuracy is an integer; 1 is the smallest meaningful value. It matters less than it looks:
-the confidence of the fix comes from all access points being at the same point.
+`hacc` is how precise the fix claims to be: the smaller the number, the more iOS trusts it
+over a weak GPS reading. The default 5 is what a real, well-observed WiFi fix looks like and
+is plausible. If a device keeps drifting back to its true position near a window or skylight,
+lowering `hacc` (and `vacc`) to `1` — the smallest value; `0` means "unknown" and can be
+discarded — makes the WiFi fix win more often:
+
+```sh
+uci set spoofd.main.hacc=1; uci set spoofd.main.vacc=1; uci commit spoofd
+/etc/init.d/spoofd restart
+```
+
+Do not expect miracles: `hacc` only sets how much iOS *weighs* the WiFi fix, it does not move
+the point, and it cannot beat a strong open-sky GPS fix. The real confidence comes from every
+access point (and cell) being placed at the same spot.
 
 ## Renewing the CA
 
