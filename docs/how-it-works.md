@@ -212,10 +212,18 @@ phones you trust as much as yourself.
 Why Apple does not stop this today: `locationd` trusts the system trust store and does no
 **certificate pinning** — the practice of accepting, for a given host, only a certificate or
 CA hard-wired into the program, ignoring the trust store (iMessage and Apple Pay do this).
-If Apple ever pinned `locationd`, the phone would reject the minted certificate, the
-handshake would fail, and location queries would stop passing through. Nothing could be done
-about it short of a jailbreak, since the rule would live inside iOS. The project would end
-cleanly: the rest of the phone's traffic, which is never touched, would keep working.
+That is not an oversight. Companies manage fleets of iPhones behind TLS-inspecting proxies
+that do exactly what this router does, with their own CA installed by MDM, and Apple
+supports it: its enterprise networking guidance lists the few hosts that must bypass
+inspection because they are pinned, and the location service is not among them. Pinning
+`locationd` would break positioning on every managed iPhone behind such a proxy.
+
+If Apple ever did pin it, the phone would reject the minted certificate, the handshake would
+fail, and location queries would stop passing through; nothing could be done short of a
+jailbreak. The more likely countermeasure, if one comes, is a **signature on the reply**
+verified with a key inside iOS: a proxy would pass it through untouched, and this router
+could not forge it. Either way the project would end cleanly — the rest of the phone's
+traffic, which is never touched, would keep working.
 
 ```
  iPhone                        router (Tailscale exit node)                       Apple
