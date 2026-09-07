@@ -86,21 +86,6 @@ mode, time zone, tuning `hacc`/`vacc`, renewing the CA — is as in
 [openwrt-setup.md](openwrt-setup.md); the config file plus a restart replaces `uci` and
 `spoofctl`.
 
-## A pfSense-specific tip: never hard-code the node's Tailscale IP
-
-Outbound NAT from the LAN towards the tailnet (LAN devices without Tailscale reaching tailnet
-hosts through this box) must translate to the box's own Tailscale address, and pfSense offers no
-"Interface Address" for the unassigned Tailscale interface. Instead of typing the IP — which
-goes stale the day the node is re-registered — let pfSense resolve it:
-
-1. Services › DNS Resolver › **Domain Overrides**: domain `<your-tailnet>.ts.net`, IP
-   `100.100.100.100` (the MagicDNS resolver `tailscaled` runs on the box itself).
-2. Firewall › Aliases: alias `Tailscale_Self`, type *Host*, value `<this-node>.<your-tailnet>.ts.net`.
-3. Use `Tailscale_Self` (/32) as the NAT translation address.
-
-pfSense re-resolves host aliases periodically, so the alias follows the node's IP with no
-script. `tailscale status` on the box shows both names.
-
 ## Notes
 
 - **Original destination**: on Linux `spoofd` recovers the pre-redirect address with
