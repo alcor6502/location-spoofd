@@ -99,7 +99,7 @@ With this firewall selected as exit node in the Tailscale app:
 4. Settings › Privacy & Security › Location Services → off, wait ten seconds, on.
 
 Open Maps. Everything after this — daily use, the per-device switch, polite mode, time zone,
-tuning `hacc`/`vacc`, renewing the CA — works exactly as in [router-setup.md](router-setup.md);
+tuning `hacc`/`vacc`, renewing the CA — works exactly as in [openwrt-setup.md](openwrt-setup.md);
 only the config file (`/usr/local/etc/spoofd.conf`, then `spoofd.sh restart`) replaces `uci`.
 
 ## Notes

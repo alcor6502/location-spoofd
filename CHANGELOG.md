@@ -11,7 +11,7 @@
   before it lapses.
 
 ### Docs
-- `docs/router-setup.md` gains a plain-language intro, a small glossary (SSH, Tailscale IP,
+- `docs/openwrt-setup.md` gains a plain-language intro, a small glossary (SSH, Tailscale IP,
   coordinates) and a no-Go install path for non-developers.
 - `docs/how-it-works.md` rewritten as a self-contained explanation for readers new to the
   protocols, TLS and Tailscale, including why Apple leaves `locationd` unpinned.

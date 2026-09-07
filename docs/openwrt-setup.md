@@ -1,4 +1,4 @@
-# Router setup (OpenWrt / GL.iNet)
+# OpenWrt / GL.iNet setup
 
 Tested on a GL.iNet GL-MT5000 (Brume 3, OpenWrt 21.02, fw3/iptables). Any OpenWrt router that
 runs Tailscale as an exit node should work.

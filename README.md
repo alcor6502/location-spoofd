@@ -68,7 +68,7 @@ On each phone, once, with the router selected as exit node in the Tailscale app:
 3. Settings › General › About › Certificate Trust Settings → enable **Location Spoofer CA**.
 4. Settings › Privacy & Security › Location Services → off, then on.
 
-Open Maps. Full guide, tuning and troubleshooting: [docs/router-setup.md](docs/router-setup.md).
+Open Maps. Full guide, tuning and troubleshooting: [docs/openwrt-setup.md](docs/openwrt-setup.md).
 On **pfSense** the daemon is the same; the setup differs (pf, rc.d, GUI port forward) and has
 its own guide: [docs/pfsense-setup.md](docs/pfsense-setup.md).
 
