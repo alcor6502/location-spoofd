@@ -45,6 +45,9 @@ var (
 	dialLimit   = 10 * time.Second
 )
 
+// caWarnBefore is how long before the CA expires the log and the status page start warning.
+const caWarnBefore = 60 * 24 * time.Hour
+
 type counters struct {
 	conns, spliced, mitm, spoofed, passthrough, swallowed atomic.Int64
 }
@@ -96,6 +99,9 @@ func main() {
 	devices = newDeviceSwitch(*caDir)
 	bssids = newBSSIDCache(*caDir, 500)
 
+	if left := time.Until(ca.Leaf.NotAfter); left < caWarnBefore {
+		log.Printf("WARNING: the CA expires in %d days (%s); regenerate it and reinstall it on the phones", int(left.Hours()/24), ca.Leaf.NotAfter.Format("2006-01-02"))
+	}
 	go serveStatus(*httpAddr, ca, loc)
 
 	ln, err := net.Listen("tcp", *tlsAddr)
@@ -317,10 +323,14 @@ func serveStatus(addr string, ca *tls.Certificate, loc spoof.Location) {
 		if !enabled {
 			next, label = "on", "Enable spoofing for this device"
 		}
+		caNote := ""
+		if left := time.Until(ca.Leaf.NotAfter); left < caWarnBefore {
+			caNote = fmt.Sprintf(" <b>— expires in %d days: regenerate it (<code>rm /etc/spoofd/*.pem</code>, restart) and reinstall it on every phone.</b>", int(left.Hours()/24))
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, statusHTML, Version,
 			loc.Latitude, loc.Longitude, loc.Altitude, loc.HorizontalAccuracy,
-			ca.Leaf.NotAfter.Format("2006-01-02"),
+			ca.Leaf.NotAfter.Format("2006-01-02"), caNote,
 			clientIP(addr), strings.ToUpper(onOff(enabled)), next, label,
 			stats.conns.Load(), stats.spliced.Load(), stats.mitm.Load(), stats.spoofed.Load(), stats.passthrough.Load(), stats.swallowed.Load())
 	})
@@ -347,7 +357,7 @@ const statusHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name=
 <title>spoofd</title><style>body{font-family:-apple-system,system-ui;max-width:32em;margin:2em auto;padding:0 1em;line-height:1.5}
 code{background:#eee;padding:0 .3em}button{font:inherit;padding:.5em 1em}ol li{margin:.4em 0}table{border-collapse:collapse}td{padding:.2em .8em .2em 0}</style></head><body>
 <h1>spoofd %s</h1>
-<p>Location: <code>%.6f, %.6f</code>, altitude %d m, accuracy %d m.<br>CA valid until %s.</p>
+<p>Location: <code>%.6f, %.6f</code>, altitude %d m, accuracy %d m.<br>CA valid until %s.%s</p>
 <h2>This device</h2>
 <p><code>%s</code> — spoofing <b>%s</b></p>
 <form method="post" action="/device"><input type="hidden" name="spoof" value="%s"><button type="submit">%s</button></form>
