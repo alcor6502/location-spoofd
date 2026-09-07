@@ -174,3 +174,37 @@ func TestConfigFile(t *testing.T) {
 		t.Error("unknown option must be an error")
 	}
 }
+
+func TestUpstreamDialerBindsReservedPorts(t *testing.T) {
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	d := &upstreamDialer{ports: portRange{lo: 18500, hi: 18502}}
+	seen := map[int]bool{}
+	for i := 0; i < 3; i++ {
+		c, err := d.Dial("tcp", ln.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := c.LocalAddr().(*net.TCPAddr).Port
+		if p < 18500 || p > 18502 {
+			t.Errorf("local port %d outside the reserved range", p)
+		}
+		seen[p] = true
+		c.Close()
+	}
+	if _, err := parsePortRange("80-90"); err == nil {
+		t.Error("privileged range must be rejected")
+	}
+	if r, err := parsePortRange("18500-18599"); err != nil || r.lo != 18500 || r.hi != 18599 {
+		t.Errorf("parse: %v %+v", err, r)
+	}
+}

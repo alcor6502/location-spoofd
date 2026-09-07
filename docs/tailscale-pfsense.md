@@ -30,6 +30,14 @@ still looks perfectly online in the admin console (WireGuard and the control pla
 unaffected). This is the single most confusing failure mode: `tailscale ping` gets a pong,
 `ping` does not.
 
+### 1.1b How exit-node traffic really flows on FreeBSD
+
+`tailscaled` on FreeBSD does not hand its clients' packets to the kernel: it forwards them in
+userspace and opens the outbound connections itself. So exit-node traffic never appears on
+`tailscale0`, needs no outbound NAT rule for `100.64.0.0/10`, and shows in `pfctl -ss` as
+connections from the firewall's own WAN address. Firewall rules on the Tailscale tab still
+matter for traffic *to* the box (SSH, DNS, the web GUI) and for subnet routes.
+
 ### 1.2 Do not restart Tailscale from Shellcmd (pfSense ≥ 2.9)
 
 Older packages started too early and people added a boot-time

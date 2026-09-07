@@ -11,18 +11,35 @@ read [how-it-works.md](how-it-works.md) first. If Tailscale on the pfSense is no
 has never been checked, start with [tailscale-pfsense.md](tailscale-pfsense.md): `spoofd`
 depends on the interface group, the firewall rules and the DNS described there.
 
-## What pfSense gives us
+## What pfSense gives us — and the one thing that is different here
 
-- The Tailscale package creates a real interface, `tailscale0`, that pf can match on. pfSense
-  shows it as **Tailscale** in Firewall › Rules. It cannot be assigned as an OPT interface and
-  does not appear in NAT › Port Forward — which is why `spoofd` installs the redirect itself.
-- pfSense regenerates its ruleset, but keeps sub-anchors across reloads. `spoofd -pf tailscale0`
-  loads its redirect into `tftp-proxy/spoofd` (the only `rdr-anchor` pfSense attaches — `rdr`
-  rules are invisible through a `nat-anchor` on FreeBSD) and its pass rules into
-  `userrules/spoofd` at start, and removes both at stop. Should they ever be flushed (`pfctl -F all`), phones simply get their real position
-  until `spoofd` restarts: the failure mode is open, never broken positioning.
-- **Shellcmd** (System › Advanced, or the Shellcmd package) runs a command at boot and survives
-  upgrades.
+- The Tailscale package creates a real interface, `tailscale0`, that pf can match on. It shows
+  up as **Tailscale** in Firewall › Rules but cannot be assigned as OPTx and does not appear in
+  NAT › Port Forward — which is why `spoofd` installs the redirect itself.
+- **Exit-node traffic never crosses `tailscale0`.** On FreeBSD `tailscaled` forwards its
+  clients' traffic in userspace: it decrypts the packets and opens the connections to the
+  Internet *itself*, from the box. In `pfctl -ss` they show up as connections from the
+  firewall's own WAN address with no client in parentheses. A redirect on the Tailscale
+  interface therefore sees nothing (that is how this was found). `spoofd` handles it the way
+  pf diverts locally originated traffic: a `pass out route-to (lo0 127.0.0.1)` sends the
+  host's own connections to Apple's `17.0.0.0/8:443` through the loopback, where an `rdr on
+  lo0` hands them to `spoofd`. `user root` restricts this to the host's own sockets
+  (`tailscaled` runs as root), so forwarded LAN traffic is untouched; `spoofd`'s own
+  connections to Apple are excluded by their source port (`pf-ports`, default 18500-18599),
+  otherwise they would loop back into it.
+- pfSense regenerates its ruleset but keeps sub-anchors across reloads. On FreeBSD a `rdr`
+  rule is only evaluated through an `rdr-anchor` attachment, and pfSense has exactly one,
+  `rdr-anchor "tftp-proxy/*"`, so the redirects live in `tftp-proxy/spoofd`; the pass and
+  route-to rules live in `userrules/spoofd`. Should they ever be flushed (`pfctl -F all`),
+  phones simply get their real position until `spoofd` restarts — fail-open.
+- **Shellcmd** (System › Advanced) runs a command at boot and survives upgrades.
+
+### Consequence: no per-device switch on pfSense
+
+Because every exit-node client's connection is opened by the firewall itself, `spoofd` sees
+one and the same source address for all of them. The per-device on/off switch on the status
+page cannot tell devices apart here: **every device using this box as exit node is spoofed**.
+Use a second exit node, or switch exit nodes on the phone, when you want the real position.
 
 ## 0. One requirement first: no IPv6 towards the clients
 
@@ -72,13 +89,18 @@ type *shellcmd*, after any command that (re)starts Tailscale. **To stop**:
 
 ```
 tftp-proxy/spoofd: rdr pass on tailscale0 inet proto tcp from any to 17.0.0.0/8 port 443 -> 127.0.0.1 port 18443
+                   rdr pass on lo0        inet proto tcp from any to 17.0.0.0/8 port 443 -> 127.0.0.1 port 18443
 userrules/spoofd:  pass in quick on tailscale0 proto tcp to 127.0.0.1 port 18443
                    pass in quick on tailscale0 proto tcp to (self) port 18080
+                   pass out quick route-to (lo0 127.0.0.1) proto tcp from any port 18499 <> 18600
+                                  to 17.0.0.0/8 port 443 user root
 ```
 
-Only traffic arriving from the Tailscale interface (exit-node clients), only TCP 443, only
-towards Apple's `17.0.0.0/8`. `spoofd` then reads the server name and splices every host that is
-not the location service straight through. `pfctl -a tftp-proxy/spoofd -s nat` shows it.
+The first `rdr` covers kernel-forwarded traffic (harmless if there is none); the `route-to`
+plus the `lo0` `rdr` cover what `tailscaled` originates itself. Only TCP 443 towards Apple's
+`17.0.0.0/8`; `spoofd` then reads the server name and splices every host that is not the
+location service straight through. Check with `pfctl -a tftp-proxy/spoofd -s nat` and
+`pfctl -a userrules/spoofd -vsr` (the counters move when phones query).
 
 ## 4. Set up each phone (once)
 
@@ -90,14 +112,16 @@ With this box selected as exit node in the Tailscale app:
    TLS handshake fails and nothing happens.
 4. Settings › Privacy & Security › Location Services → off, wait ten seconds, on.
 
-Open Maps. Everything from here — daily use, the per-device switch on the status page, polite
-mode, time zone, tuning `hacc`/`vacc`, renewing the CA — is as in
-[openwrt-setup.md](openwrt-setup.md); the config file plus a restart replaces `uci` and
-`spoofctl`.
+Open Maps. Everything from here — daily use, polite mode, time zone, tuning `hacc`/`vacc`,
+renewing the CA — is as in [openwrt-setup.md](openwrt-setup.md), except the per-device switch
+(see above); the config file plus a restart replaces `uci` and `spoofctl`.
 
 ## Notes
 
 - **Original destination**: on Linux `spoofd` recovers the pre-redirect address with
-  `SO_ORIGINAL_DST`; the FreeBSD equivalent (`DIOCNATLOOK`) is not implemented. Spliced hosts
+  `SO_ORIGINAL_DST`; on pfSense the redirected connection comes through `lo0` and spliced hosts
   are reached by their SNI name, which for Apple's hosts resolves to the same servers.
+- **Tested** on pfSense 2.9 / Tailscale package 0.1.9 with a Mac as exit-node client:
+  `gs-loc.apple.com` gets the router's certificate, `configuration.ls.apple.com` and the rest
+  of the web pass through with their real ones.
 - **Ports** 18443/18080 avoid pfSense's own web GUI; change `listen`/`http` in the conf.

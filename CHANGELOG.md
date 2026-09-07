@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.5.0 — 2026-09-07
+
+### Added
+- **pfSense support that actually works**, tested on pfSense 2.9 / Tailscale 0.1.9. `spoofd`
+  now reads a config file (`-config`) and manages its own pf rules (`-pf tailscale0`): a
+  redirect on the interface plus a `route-to (lo0)` diversion of the host's own connections,
+  because on FreeBSD `tailscaled` forwards exit-node traffic in userspace and no packet ever
+  crosses `tailscale0`. spoofd's upstream connections are bound to `-pf-ports` so they are not
+  diverted back. One binary, one file, one boot command; no shell scripts.
+- `docs/tailscale-pfsense.md`: Tailscale on pfSense done properly (interface group, no Shellcmd
+  restart, network aliases instead of IP lists, Unbound, admin-console DNS, key expiry via
+  tags, ACLs, sharing).
+
+### Changed
+- The per-device switch is unavailable on pfSense (all exit-node clients share the firewall's
+  source address); documented.
+- Config file accepts trailing comments.
+
+
 ## v1.4.0 — 2026-09-07
 
 ### Added

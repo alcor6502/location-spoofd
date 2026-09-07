@@ -10,9 +10,12 @@ alt=0            # altitude, metres
 hacc=5
 vacc=3
 
-# Tailscale interface: spoofd loads the pf redirect for it into pfSense's anchors and
-# removes it on stop. Leave empty to manage pf yourself.
+# Tailscale interface: spoofd loads the pf redirect into pfSense's anchors and removes it
+# on stop. On pfSense tailscaled forwards exit-node traffic in userspace, so the redirect also
+# diverts the host's own connections to Apple; spoofd's upstream connections are bound to
+# pf-ports so they are not diverted back into it. Leave pf empty to manage pf yourself.
 pf=tailscale0
+pf-ports=18500-18599
 
 # Ports (18443 receives the redirected HTTPS, 18080 serves the CA download and status page).
 listen=:18443
